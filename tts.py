@@ -14,18 +14,15 @@ speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_r
 speech_config.speech_synthesis_voice_name = "zh-TW-HsiaoChenNeural"
 
 def get_tts_audio_stream(text: str):
-    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3)
+    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm)
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
     result = speech_synthesizer.speak_text_async(text).get()
     return AudioDataStream(result)
 
 def play_speech(stream: AudioDataStream):
-    buffer = bytearray()
-    buffer_size = 2048 # data chunk size, can be arbitrary
-    while stream.can_read_data(buffer_size):
-        temp_buffer = bytes(buffer_size)
-        filled_size = stream.read_data(temp_buffer)
-        buffer.extend(temp_buffer[:filled_size])
-
-    audio_segment = AudioSegment.from_mp3(io.BytesIO(buffer))
+    temp_dir = '.temp/'
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_file_path = os.path.join(temp_dir, '_speech.wav')
+    stream.save_to_wav_file(temp_file_path)
+    audio_segment = AudioSegment.from_wav(temp_file_path)
     play(audio_segment)
