@@ -7,12 +7,11 @@ load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
 openai.api_key = api_key
 
-def get_llm_text_stream(text: str) -> str:
+def get_llm_text_stream(messages: Sequence) -> str:
     res = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[
-            {"role": "user", "content": text}
-        ],
+        messages=messages,
+        temperature=0.5,
         stream=True
     )
     return res

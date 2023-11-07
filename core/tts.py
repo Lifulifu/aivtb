@@ -14,7 +14,7 @@ speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_r
 speech_config.speech_synthesis_voice_name = "zh-TW-HsiaoChenNeural"
 
 def get_tts_audio_stream(text: str):
-    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm)
+    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm)
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
     result = speech_synthesizer.speak_text_async(text).get()
     return AudioDataStream(result)
