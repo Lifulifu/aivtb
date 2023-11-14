@@ -6,6 +6,7 @@ class Pipeline:
     def __init__(self, input_generator: Callable[[], Generator[int, None, None]], stages: List[Callable[[int], int]]):
         self.input_generator = input_generator
         self.stages = stages
+        self.threads: List[threading.Thread] = []
 
     def _feed_from_generator(self, gen: Generator[int, None, None], out_queue: Queue[Optional[int]]) -> None:
         for item in gen:
@@ -24,10 +25,18 @@ class Pipeline:
         queues = [Queue() for _ in range(len(self.stages) + 1)]
 
         # Create threads for the generator and stages
-        threading.Thread(target=self._feed_from_generator, args=(self.input_generator, queues[0])).start()
+        thread = threading.Thread(target=self._feed_from_generator, args=(self.input_generator, queues[0]))
+        thread.start()
+        self.threads.append(thread)
 
         for i, function in enumerate(self.stages):
-            threading.Thread(target=self._stage_worker, args=(queues[i], queues[i + 1], function)).start()
+            thread = threading.Thread(target=self._stage_worker, args=(queues[i], queues[i + 1], function))
+            thread.start()
+            self.threads.append(thread)
+
+        # Wait for all stages to finish
+        for thread in self.threads:
+            thread.join()
 
         # Return generator for final queue results
         def output_generator():

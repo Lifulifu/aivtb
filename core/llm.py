@@ -1,17 +1,19 @@
-import openai
+from openai import OpenAI
 from typing import Generator, Sequence, Optional
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
-openai.api_key = api_key
+client = OpenAI(api_key=api_key)
 
 def get_llm_text_stream(messages: Sequence) -> str:
-    res = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+    res = client.chat.completions.create(
+        model="ft:gpt-3.5-turbo-1106:personal::8KTEQksW",
+        # model="gpt-3.5-turbo",
         messages=messages,
-        temperature=0.5,
+        temperature=0.6,
+        max_tokens=500,
         stream=True
     )
     return res
@@ -20,10 +22,7 @@ def to_chunks(gen: Generator, min_len: int = 0, separator: str | Sequence[str] =
     if isinstance(separator, str): separator = (separator,)
     chunk = ''
     for piece in gen:
-        try:
-            piece = piece['choices'][0]['delta']['content']
-        except:
-            piece = ''
+        piece = piece.choices[0].delta.content or ''
 
         for char in piece:
             chunk += char
