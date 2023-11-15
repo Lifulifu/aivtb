@@ -7,7 +7,7 @@ load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
 client = OpenAI(api_key=api_key)
 
-def get_llm_text_stream(messages: Sequence) -> str:
+def get_llm_text_stream(messages: Sequence) -> Generator:
     res = client.chat.completions.create(
         model="ft:gpt-3.5-turbo-1106:personal::8KTEQksW",
         # model="gpt-3.5-turbo",

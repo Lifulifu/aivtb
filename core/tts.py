@@ -1,7 +1,6 @@
 import azure.cognitiveservices.speech as speechsdk
 from azure.cognitiveservices.speech import AudioDataStream
 from audio import play_wav, get_device_name
-import io
 import os
 from dotenv import load_dotenv
 
