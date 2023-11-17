@@ -1,95 +1,214 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Radio, Spinner, Textarea } from 'flowbite-svelte'
-  import { onDestroy, onMount } from 'svelte';
+  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea } from 'flowbite-svelte'
+  import { onDestroy, onMount, tick } from 'svelte';
+  import { fade } from 'svelte/transition';
+  import { scrollToBottom } from './lib/util';
+  import Icon from '@iconify/svelte';
 
-  let inputMessage: string = '';
-  let messagePrefix: string = '<player>';
-  let messagePrefixDropdownOpen: boolean = false;
-  let response: {q: string, a: string} = {q: '', a: ''};
-  let sseHandler: EventSource;
+  let aiMessage: string = '';
+  let aiMessagePrefix: string = '<player>';
+  let aiMessagePrefixDropdownOpen: boolean = false;
+  let showAiMessageModal: boolean = false;
+
+  type aiResponse = {q: string, a: string};
+  let aiResponse: aiResponse | null = {q: '', a: ''};
+  let aiResponseHandler: EventSource;
+  let aiResponseError: boolean = false;
   let isLoading: boolean = false;
 
+  let videoId: string = '';
+  type YtCommentItem = {name: string, message: string, time: string}
+  let ytComments: YtCommentItem[] = [];
+  let ytCommentsHandler: EventSource;
+  let ytCommentsDom: any = null;
+  let ytCommentsError: boolean = false;
+  let isAtScrollBottom: boolean = true;
+
+  const chatUrl = 'http://localhost:8000/chat';
+  const aiResponseUrl = 'http://localhost:8000/stream_response';
+  const ytCommentsUrl = 'http://localhost:8000/stream_yt_comments';
+
   onMount(() => {
-    reconnect();
+    connectAiResponse();
+
+    if (ytCommentsDom) {
+      ytCommentsDom.addEventListener("scroll", () => {
+        if (
+					ytCommentsDom.scrollTop + ytCommentsDom.clientHeight >=
+					ytCommentsDom.scrollHeight - 2
+				) {
+          isAtScrollBottom = true;
+        } else {
+          isAtScrollBottom = false;
+        }
+        tick();
+      })
+    }
   })
 
   onDestroy(() => {
-    sseHandler.close();
+    aiResponseHandler.close();
+    ytCommentsHandler.close();
+    ytCommentsDom.removeEventListener("scroll");
   })
 
-  async function reconnect() {
-    if (sseHandler) sseHandler.close();
-    sseHandler = new EventSource('http://localhost:8000/stream_response', { withCredentials: true });
-    sseHandler.onmessage = (e) => {
+  $: if (ytCommentsDom && isAtScrollBottom && ytComments) autoScrollYtComments()
+
+  async function autoScrollYtComments() {
+    await tick();
+    scrollToBottom(ytCommentsDom);
+  }
+
+  async function connectAiResponse() {
+    if (aiResponseHandler) aiResponseHandler.close();
+    aiResponseHandler = new EventSource(aiResponseUrl, { withCredentials: true });
+    aiResponseHandler.onmessage = (e) => {
       isLoading = false;
+      aiResponseError = false;
       try {
         const data = JSON.parse(e.data)
-        if(data) response = data;
+        if(data) aiResponse = data;
       } catch (e) {
-        response = {q: 'error', a: ''}
+        aiResponse = null
       }
+    }
+    aiResponseHandler.onerror = (e) => {
+      console.error(e)
+      aiResponseError = true;
     }
   }
 
-  async function sendMessage(message: string) {
+  async function connectYtComments() {
+    if (!videoId) return;
+    if (ytCommentsHandler) ytCommentsHandler.close();
+    ytCommentsHandler = new EventSource(`${ytCommentsUrl}?video_id=${videoId}`, { withCredentials: true });
+    ytCommentsHandler.onmessage = (e) => {
+      ytCommentsError = false;
+      try {
+        const data = JSON.parse(e.data)
+        if(data) {
+          ytComments.push(data);
+          ytComments = ytComments;
+        }
+      } catch (e) {
+        console.log(e)
+      }
+    }
+    ytCommentsHandler.onerror = (e) => {
+      console.error(e)
+      ytCommentsError = true;
+    }
+  }
+
+  async function sendAiMessage(prefix: string, message: string) {
     isLoading = true;
-    message = encodeURI(messagePrefix + message)
-    await fetch(`http://localhost:8000/chat?message=${message}`)
+    message = encodeURI(prefix + message)
+    await fetch(`${chatUrl}?message=${message}`)
   }
 
   function setMessagePrefix(type: string) {
-    messagePrefix = type;
-    messagePrefixDropdownOpen = false;
+    aiMessagePrefix = type;
+    aiMessagePrefixDropdownOpen = false;
   }
 
   async function onInputSubmit() {
-    await sendMessage(inputMessage);
-    inputMessage = ''
+    await sendAiMessage(aiMessagePrefix, aiMessage);
+    aiMessage = ''
+  }
+
+  async function onYtCommentClick(commentItem: YtCommentItem) {
+    aiMessage = commentItem.message;
   }
 </script>
 
 <main>
-  <div class="container mt-8 space-y-2">
-    <Card class="max-w-full">
-      {#if isLoading}
-        <div class="flex justify-center">
-          <Spinner/>
-        </div>
-      {:else}
-        {response.q}
-      {/if}
+  <div class="container w-full mt-8 flex gap-4">
+    <!-- yt comments -->
+    <Card class="min-w-[30ch] space-y-2" padding="none">
+      <div class="w-full flex flex-col items-center gap-2 p-4">
+        <Input bind:value={videoId}/>
+        <ButtonGroup>
+          <Button color='alternative' on:click={() => ytCommentsHandler.close()}>Disconnect</Button>
+          <Button color='primary' on:click={connectYtComments}>Connect</Button>
+        </ButtonGroup>
+      </div>
+      <ol class="max-h-[40ch] overflow-y-auto" bind:this={ytCommentsDom}>
+        {#each ytComments as item}
+          <li class="cursor-pointer py-2 px-4 border-b max-w-full hover:bg-primary-600/30 break-words"
+          on:click={() => onYtCommentClick(item)}>
+            <p class="text-xs font-bold text-gray-400">{item.name}</p>
+            <p>{item.message}</p>
+          </li>
+        {/each}
+      </ol>
     </Card>
-    <Card class="max-w-full">
-      {#if isLoading}
-        <div class="flex justify-center">
-          <Spinner/>
+
+    <div class="flex-grow">
+      <!-- QA streaming display -->
+      <Card class="max-w-full space-y-2 bg-gray-200" padding="md">
+        <Card class="max-w-full">
+          {#if isLoading || !aiResponse}
+            <div class="flex justify-center">
+              <Spinner/>
+            </div>
+          {:else}
+            {aiResponse.q}
+          {/if}
+        </Card>
+        <Card class="max-w-full">
+          {#if isLoading || !aiResponse}
+            <div class="flex justify-center">
+              <Spinner/>
+            </div>
+          {:else}
+            {aiResponse.a}
+          {/if}
+        </Card>
+        <Button on:click={connectAiResponse}>Reconnect</Button>
+      </Card>
+
+      <!-- message input -->
+      <form class="mt-8 space-y-2" on:submit|preventDefault={onInputSubmit}>
+        <div class="flex gap-2">
+          <Button color="alternative"
+            on:click={() => sendAiMessage('', '<instruction>自我介紹')}>自我介紹</Button>
+          <Button color="alternative"
+            on:click={() => sendAiMessage('', '<instruction>雜談')}>雜談</Button>
         </div>
-      {:else}
-        {response.a}
-      {/if}
-    </Card>
+
+        <div class="w-full">
+          <ButtonGroup class="flex">
+            <Button>{aiMessagePrefix === '' ? 'None' : aiMessagePrefix}</Button>
+            <Dropdown bind:open={aiMessagePrefixDropdownOpen}>
+              <DropdownItem on:click={() => setMessagePrefix('')}>{'None'}</DropdownItem>
+              <DropdownItem on:click={() => setMessagePrefix('<player>')}>{'<player>'}</DropdownItem>
+              <DropdownItem on:click={() => setMessagePrefix('<instruction>')}>{'<instruction>'}</DropdownItem>
+            </Dropdown>
+            <Input class="flex-grow" bind:value={aiMessage}/>
+            <Button color="alternative" class="p-2" on:click={() => showAiMessageModal = true}><Icon icon="mdi:magnify-scan" height={20}/></Button>
+          </ButtonGroup>
+        </div>
+        <Button type="submit" class="w-full" color="primary">Send</Button>
+      </form>
+    </div>
   </div>
-
-  <form class="container mt-8 space-y-2" on:submit|preventDefault={onInputSubmit}>
-    <div class="flex gap-2">
-      <Button
-        on:click={() => sendMessage('<instruction>自我介紹')}>自我介紹</Button>
-      <Button
-        on:click={() => sendMessage('<instruction>雜談')}>雜談</Button>
-      <Button class="ml-auto" on:click={reconnect}>Reconnect</Button>
-    </div>
-
-    <div class="w-full">
-      <ButtonGroup class="flex">
-        <Button>{messagePrefix === '' ? 'None' : messagePrefix}</Button>
-        <Dropdown bind:open={messagePrefixDropdownOpen}>
-          <DropdownItem on:click={() => setMessagePrefix('')}>{'None'}</DropdownItem>
-          <DropdownItem on:click={() => setMessagePrefix('<player>')}>{'<player>'}</DropdownItem>
-          <DropdownItem on:click={() => setMessagePrefix('<instruction>')}>{'<instruction>'}</DropdownItem>
-        </Dropdown>
-        <Input class="flex-grow" bind:value={inputMessage}/>
-      </ButtonGroup>
-    </div>
-    <Button type="submit" class="w-full" color="primary">Send</Button>
-  </form>
 </main>
+
+<Modal bind:open={showAiMessageModal}>
+  <h1>Message</h1>
+  <Textarea bind:value={aiMessage}/>
+</Modal>
+
+{#if aiResponseError}
+  <Toast color="red" position="bottom-right" transition={fade}>
+    <Icon slot="icon" icon="zondicons:close-outline"/>
+    Cannot connect to AI response stream.
+  </Toast>
+{/if}
+
+{#if ytCommentsError}
+  <Toast color="red" position="bottom-right" transition={fade}>
+    <Icon slot="icon" icon="zondicons:close-outline"/>
+    Cannot connect to YouTube comments stream.
+  </Toast>
+{/if}

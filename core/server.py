@@ -7,6 +7,7 @@ import yaml
 from typing import Callable, AsyncGenerator
 import asyncio
 import json
+import pytchat
 from main import construct_message
 from llm import get_llm_text_stream, to_chunks
 
@@ -70,19 +71,37 @@ async def chat(message: str):
     print('\nQ:', message)
     await infer_worker.submit(message)
 
+# Catches cancel signal from client
+async def async_stream_wrapper(gen):
+    try:
+        async for item in gen:
+            yield item
+    except asyncio.CancelledError:
+        print("stream client cancelled")
+
+def to_sse_string(data: dict):
+    return f'data: {json.dumps(data)}\n\n'
+
 @app.get('/stream_response')
 async def stream_response(request: Request):
-    # Catches cancel signal from client
-    async def streamWrapper(gen):
-        try:
-            async for item in gen:
-                yield item
-        except asyncio.CancelledError:
-            print("stream client cancelled")
-
     async def gen():
         while True:
             piece = await response_queue.get()
-            yield f'data: {json.dumps(piece)}\n\n'
+            yield to_sse_string(piece)
 
-    return StreamingResponse(streamWrapper(gen()), media_type='text/event-stream')
+    return StreamingResponse(async_stream_wrapper(gen()), media_type='text/event-stream')
+
+@app.get('/stream_yt_comments')
+async def stream_yt_comments(video_id: str, request: Request):
+    chat = pytchat.create(video_id=video_id)
+    async def gen():
+        while chat.is_alive():
+            async for item in chat.get().async_items():
+                chunk = {
+                    'time': item.datetime,
+                    'name': item.author.name,
+                    'message': item.message
+                }
+                yield to_sse_string(chunk)
+
+    return StreamingResponse(gen(), media_type='text/event-stream')
