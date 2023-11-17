@@ -1,29 +1,28 @@
-from openai import OpenAI
-from typing import Generator, Sequence, Optional
+from openai import AsyncOpenAI
+from typing import AsyncGenerator, Sequence, Optional
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
-client = OpenAI(api_key=api_key)
+client = AsyncOpenAI(api_key=api_key)
 
-def get_llm_text_stream(messages: Sequence) -> Generator:
-    res = client.chat.completions.create(
-        model="ft:gpt-3.5-turbo-1106:personal::8KTEQksW",
+async def get_llm_text_stream(messages: Sequence) -> AsyncGenerator:
+    res = await client.chat.completions.create(
+        model="ft:gpt-3.5-turbo-1106:personal::8LF3ausT",
         # model="gpt-3.5-turbo",
         messages=messages,
         temperature=0.6,
         max_tokens=500,
         stream=True
     )
-    return res
+    async for piece in res:
+        yield piece.choices[0].delta.content or ''
 
-def to_chunks(gen: Generator, min_len: int = 0, separator: str | Sequence[str] = ('，', '。', ',', '.', '\n')):
+async def to_chunks(gen: AsyncGenerator, min_len: int = 0, separator: str | Sequence[str] = ('，', '。', ',', '.', '\n')):
     if isinstance(separator, str): separator = (separator,)
     chunk = ''
-    for piece in gen:
-        piece = piece.choices[0].delta.content or ''
-
+    async for piece in gen:
         for char in piece:
             chunk += char
             if char in separator:

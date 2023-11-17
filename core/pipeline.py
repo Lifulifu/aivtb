@@ -1,31 +1,30 @@
 from queue import Queue
 import threading
-from typing import Generator, Callable, List, Optional
+from typing import Generator, Callable, List, Optional, Any
 
 class Pipeline:
-    def __init__(self, input_generator: Callable[[], Generator[int, None, None]], stages: List[Callable[[int], int]]):
-        self.input_generator = input_generator
+    def __init__(self, stages: List[Callable[[Any], int]]):
         self.stages = stages
         self.threads: List[threading.Thread] = []
 
-    def _feed_from_generator(self, gen: Generator[int, None, None], out_queue: Queue[Optional[int]]) -> None:
+    def _feed_from_generator(self, gen: Generator[Any, None, None], out_queue: Queue[Optional[int]]) -> None:
         for item in gen:
             out_queue.put(item)
         out_queue.put(None)
 
-    def _stage_worker(self, in_queue: Queue[Optional[int]], out_queue: Queue[Optional[int]], function: Callable[[int], int]) -> None:
+    def _stage_worker(self, in_queue: Queue[Optional[Any]], out_queue: Queue[Optional[Any]], function: Callable) -> None:
         while True:
             item = in_queue.get()
-            if item is None: break
             result = function(item)
+            if item is None: break
             out_queue.put(result)
         out_queue.put(None)
 
-    def run(self) -> Generator[int, None, None]:
+    def run(self, input_generator: Generator[Any, None, None]) -> Generator[Any, None, None]:
         queues = [Queue() for _ in range(len(self.stages) + 1)]
 
         # Create threads for the generator and stages
-        thread = threading.Thread(target=self._feed_from_generator, args=(self.input_generator, queues[0]))
+        thread = threading.Thread(target=self._feed_from_generator, args=(input_generator, queues[0]))
         thread.start()
         self.threads.append(thread)
 
