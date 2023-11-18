@@ -19,18 +19,36 @@ async def get_llm_text_stream(messages: Sequence) -> AsyncGenerator:
     async for piece in res:
         yield piece.choices[0].delta.content or ''
 
-async def to_chunks(gen: AsyncGenerator, min_len: int = 0, separator: str | Sequence[str] = ('，', '。', ',', '.', '\n')):
-    if isinstance(separator, str): separator = (separator,)
-    chunk = ''
-    async for piece in gen:
+class ChunkCollector():
+    def __init__(self, min_len: int = 0, separator: str | Sequence[str] = ('，', '。', ',', '.', '\n')):
+        self.separator = (separator,) if isinstance(separator, str) else separator
+        self.min_len = min_len
+        self.chunk = ''
+
+    def collect(self, piece: str):
         for char in piece:
-            chunk += char
-            if char in separator:
-                if len(chunk) < min_len: continue
-                yield chunk
-                chunk = ''
-    if len(chunk) > 0: yield chunk
-    return
+            self.chunk += char
+            if char in self.separator:
+                if len(self.chunk) >= self.min_len:
+                    chunk = self.chunk
+                    self.chunk = ''
+                    return chunk
+        return None
+
+    def remain_chunk(self):
+        return len(self.chunk) > 0
+
+def to_chunks(text: str, min_len: int = 0, separator: str | Sequence[str] = ('，', '。', ',', '.', '\n')):
+    chunks = []
+    chunk = ''
+    for char in text:
+        chunk += char
+        if char in separator:
+            if len(chunk) < min_len: continue
+            chunks.append(chunk)
+            chunk = ''
+    if len(chunk) > 0:
+        chunks.append(chunk)
 
 
 
