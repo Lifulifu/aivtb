@@ -1,5 +1,5 @@
 from llm import get_llm_text_stream, to_chunks
-# from tts import get_tts_audio_stream, play_speech
+from tts import get_tts_audio_stream, play_speech
 from pipeline import Pipeline
 from functools import partial
 from typing import List

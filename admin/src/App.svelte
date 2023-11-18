@@ -12,21 +12,21 @@
 
   type aiResponse = {q: string, a: string};
   let aiResponse: aiResponse | null = {q: '', a: ''};
-  let aiResponseHandler: EventSource;
+  let aiResponseWs: WebSocket;
   let aiResponseError: boolean = false;
   let isLoading: boolean = false;
 
   let videoId: string = '';
   type YtCommentItem = {name: string, message: string, time: string}
   let ytComments: YtCommentItem[] = [];
-  let ytCommentsHandler: EventSource;
+  let ytCommentsWs: WebSocket;
   let ytCommentsDom: any = null;
   let ytCommentsError: boolean = false;
   let isAtScrollBottom: boolean = true;
 
   const chatUrl = 'http://localhost:8000/chat';
-  const aiResponseUrl = 'http://localhost:8000/stream_response';
-  const ytCommentsUrl = 'http://localhost:8000/stream_yt_comments';
+  const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
+  const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
 
   onMount(() => {
     connectAiResponse();
@@ -47,8 +47,8 @@
   })
 
   onDestroy(() => {
-    aiResponseHandler.close();
-    ytCommentsHandler.close();
+    aiResponseWs.close();
+    ytCommentsWs.close();
     ytCommentsDom.removeEventListener("scroll");
   })
 
@@ -60,9 +60,9 @@
   }
 
   async function connectAiResponse() {
-    if (aiResponseHandler) aiResponseHandler.close();
-    aiResponseHandler = new EventSource(aiResponseUrl, { withCredentials: true });
-    aiResponseHandler.onmessage = (e) => {
+    if (aiResponseWs) aiResponseWs.close();
+    aiResponseWs = new WebSocket(aiResponseUrl);
+    aiResponseWs.onmessage = (e) => {
       isLoading = false;
       aiResponseError = false;
       try {
@@ -72,7 +72,7 @@
         aiResponse = null
       }
     }
-    aiResponseHandler.onerror = (e) => {
+    aiResponseWs.onerror = (e) => {
       console.error(e)
       aiResponseError = true;
     }
@@ -80,9 +80,9 @@
 
   async function connectYtComments() {
     if (!videoId) return;
-    if (ytCommentsHandler) ytCommentsHandler.close();
-    ytCommentsHandler = new EventSource(`${ytCommentsUrl}?video_id=${videoId}`, { withCredentials: true });
-    ytCommentsHandler.onmessage = (e) => {
+    if (ytCommentsWs) ytCommentsWs.close();
+    ytCommentsWs = new WebSocket(`${ytCommentsUrl}/${videoId}`);
+    ytCommentsWs.onmessage = (e) => {
       ytCommentsError = false;
       try {
         const data = JSON.parse(e.data)
@@ -94,7 +94,7 @@
         console.log(e)
       }
     }
-    ytCommentsHandler.onerror = (e) => {
+    ytCommentsWs.onerror = (e) => {
       console.error(e)
       ytCommentsError = true;
     }
@@ -128,7 +128,7 @@
       <div class="w-full flex flex-col items-center gap-2 p-4">
         <Input bind:value={videoId}/>
         <ButtonGroup>
-          <Button color='alternative' on:click={() => ytCommentsHandler.close()}>Disconnect</Button>
+          <Button color='alternative' on:click={() => ytCommentsWs.close()}>Disconnect</Button>
           <Button color='primary' on:click={connectYtComments}>Connect</Button>
         </ButtonGroup>
       </div>

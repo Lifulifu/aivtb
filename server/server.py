@@ -1,9 +1,8 @@
-from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from sse_starlette.sse import EventSourceResponse
+from wsmanager import WebSocketManager
 import yaml
-from typing import Callable, AsyncGenerator
+from typing import Callable
 import asyncio
 import json
 import pytchat
@@ -80,26 +79,34 @@ async def async_stream_wrapper(gen):
 def to_sse_string(data: dict):
     return f'data: {json.dumps(data)}\n\n'
 
-@app.get('/stream_response')
-async def stream_response(request: Request):
-    async def gen():
-        while True:
-            piece = await response_queue.get()
-            yield to_sse_string(piece)
 
-    return StreamingResponse(async_stream_wrapper(gen()), media_type='text/event-stream')
+yt_comments_manager = WebSocketManager()
+@app.websocket('/stream_yt_comments/{video_id}')
+async def stream_yt_comments(websocket: WebSocket, video_id: str):
+    await yt_comments_manager.connect(websocket)
 
-@app.get('/stream_yt_comments')
-async def stream_yt_comments(video_id: str, request: Request):
     chat = pytchat.create(video_id=video_id)
-    async def gen():
-        while chat.is_alive():
+    async def task():
+        if chat.is_alive():
             async for item in chat.get().async_items():
                 chunk = {
                     'time': item.datetime,
                     'name': item.author.name,
                     'message': item.message
                 }
-                yield to_sse_string(chunk)
+                await yt_comments_manager.broadcast(chunk)
+        else:
+            return True # abort
 
-    return StreamingResponse(gen(), media_type='text/event-stream')
+    await yt_comments_manager.run_async_worker(websocket, task=task)
+
+ai_response_manager = WebSocketManager()
+@app.websocket('/stream_ai_response')
+async def stream_ai_response(websocket: WebSocket):
+    await ai_response_manager.connect(websocket)
+
+    async def task():
+        result = await response_queue.get()
+        await ai_response_manager.broadcast(result)
+
+    await ai_response_manager.run_async_worker(websocket, task=task)
