@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, List, Any
+from typing import Callable, List, Any, Optional
 
 class AsyncSequentialWorker():
     def __init__(self, process_task: Callable, in_queue=None, out_queue=None, cooldown=0):
@@ -33,36 +33,33 @@ class AsyncSequentialWorker():
         await asyncio.gather(self.worker, return_exceptions=True)
 
 class AsyncPipelineWorker():
-    def __init__(self, stages: List[Callable], in_queue=None, out_queue=None, cooldown=0):
-        self.stages = stages
-        self.in_queue = asyncio.Queue() if in_queue is None else in_queue
+    def __init__(self, process_tasks: List[Callable], in_queue: Optional[asyncio.Queue] = None, out_queue: Optional[asyncio.Queue] = None):
+        self.in_queue = in_queue or asyncio.Queue()
         self.out_queue = out_queue
-        self.cooldown = cooldown
-        self.workers = self._create_workers()
+        self.workers = []
+        self._create_pipeline(process_tasks)
 
-    def _create_workers(self):
-        workers = []
-        next_in_queue = self.in_queue
+    def _create_pipeline(self, process_tasks: List[Callable]):
+        queue = self.in_queue
+        for i, process_task in enumerate(process_tasks):
+            # For the last task, use the specified out_queue if provided
+            next_queue = self.out_queue if i == len(process_tasks) - 1 else asyncio.Queue()
+            worker = AsyncSequentialWorker(process_task, queue, next_queue if process_task != process_tasks[-1] else None)
+            self.workers.append(worker)
+            queue = next_queue
 
-        for stage in self.stages[:-1]:
-            next_out_queue = asyncio.Queue()
-            worker = AsyncSequentialWorker(process_task=stage, in_queue=next_in_queue, out_queue=next_out_queue, cooldown=self.cooldown)
-            workers.append(worker)
-            next_in_queue = next_out_queue
-
-        final_worker = AsyncSequentialWorker(
-            process_task=self.stages[-1], in_queue=next_in_queue, out_queue=self.out_queue, cooldown=self.cooldown)
-        workers.append(final_worker)
-
-        return workers
-
-    async def start(self):
+    def start(self):
         for worker in self.workers:
             worker.start()
 
     async def submit(self, task: Any):
-        await self.workers[0].submit(task)
+        await self.in_queue.put(task)
 
     async def end(self):
         for worker in self.workers:
             await worker.end()
+
+    async def join(self):
+        # Optionally wait for all tasks to be processed
+        if self.workers:
+            await self.workers[-1].in_queue.join()

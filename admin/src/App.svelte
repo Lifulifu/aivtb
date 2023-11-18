@@ -27,6 +27,7 @@
   const chatUrl = 'http://localhost:8000/chat';
   const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
   const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
+  const publishAiResponseUrl = 'http://localhost:8000/publish_ai_response';
 
   onMount(() => {
     connectAiResponse();
@@ -119,6 +120,16 @@
   async function onYtCommentClick(commentItem: YtCommentItem) {
     aiMessage = commentItem.message;
   }
+
+  async function publishAiResponse() {
+    await fetch(publishAiResponseUrl, {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiResponse)
+    }).catch(e => {
+      console.error(e)
+    })
+  }
 </script>
 
 <main>
@@ -127,10 +138,13 @@
     <Card class="min-w-[30ch] space-y-2" padding="none">
       <div class="w-full flex flex-col items-center gap-2 p-4">
         <Input bind:value={videoId}/>
-        <ButtonGroup>
-          <Button color='alternative' on:click={() => ytCommentsWs.close()}>Disconnect</Button>
-          <Button color='primary' on:click={connectYtComments}>Connect</Button>
-        </ButtonGroup>
+        <div class="w-full flex gap-2">
+          <ButtonGroup>
+            <Button color='alternative' on:click={() => ytCommentsWs.close()}>Disconnect</Button>
+            <Button color='primary' on:click={connectYtComments}>Connect</Button>
+          </ButtonGroup>
+          <Button class='ml-auto' color='alternative' on:click={() => ytComments = []}>Clear</Button>
+        </div>
       </div>
       <ol class="max-h-[40ch] overflow-y-auto" bind:this={ytCommentsDom}>
         {#each ytComments as item}
@@ -144,31 +158,8 @@
     </Card>
 
     <div class="flex-grow">
-      <!-- QA streaming display -->
-      <Card class="max-w-full space-y-2 bg-gray-200" padding="md">
-        <Card class="max-w-full">
-          {#if isLoading || !aiResponse}
-            <div class="flex justify-center">
-              <Spinner/>
-            </div>
-          {:else}
-            {aiResponse.q}
-          {/if}
-        </Card>
-        <Card class="max-w-full">
-          {#if isLoading || !aiResponse}
-            <div class="flex justify-center">
-              <Spinner/>
-            </div>
-          {:else}
-            {aiResponse.a}
-          {/if}
-        </Card>
-        <Button on:click={connectAiResponse}>Reconnect</Button>
-      </Card>
-
-      <!-- message input -->
-      <form class="mt-8 space-y-2" on:submit|preventDefault={onInputSubmit}>
+    <!-- message input -->
+      <form class="space-y-2" on:submit|preventDefault={onInputSubmit}>
         <div class="flex gap-2">
           <Button color="alternative"
             on:click={() => sendAiMessage('', '<instruction>自我介紹')}>自我介紹</Button>
@@ -190,6 +181,35 @@
         </div>
         <Button type="submit" class="w-full" color="primary">Send</Button>
       </form>
+
+      <!-- QA streaming display -->
+      <Card class="mt-8 max-w-full space-y-2 bg-gray-200" padding="md">
+        <Card class="max-w-full">
+          {#if isLoading || !aiResponse}
+            <div class="flex justify-center">
+              <Spinner/>
+            </div>
+          {:else}
+            {aiResponse.q}
+          {/if}
+        </Card>
+        <Card class="max-w-full">
+          {#if isLoading || !aiResponse}
+            <div class="flex justify-center">
+              <Spinner/>
+            </div>
+          {:else}
+            {aiResponse.a}
+          {/if}
+        </Card>
+        <div class="flex">
+          <ButtonGroup>
+            <Button color='alternative' on:click={() => aiResponseWs.close()}>Disconnect</Button>
+            <Button color='primary' on:click={connectAiResponse}>Connect</Button>
+          </ButtonGroup>
+          <Button class='ml-auto' color='primary' on:click={publishAiResponse}>Publish</Button>
+        </div>
+      </Card>
     </div>
   </div>
 </main>

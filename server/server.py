@@ -3,60 +3,41 @@ from fastapi.middleware.cors import CORSMiddleware
 from wsmanager import WebSocketManager
 import yaml
 import asyncio
-import json
 import pytchat
 from main import construct_message
-from llm import get_llm_text_stream, ChunkCollector
+from llm import get_llm_text_stream, to_chunks
 from worker import AsyncSequentialWorker, AsyncPipelineWorker
+from pydantic import BaseModel
+
 
 # load config
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
-def logger(chunk):
-    print('fetch:', chunk)
+# setup workers
+async def stage1(chunk):
+    print('stage1:', chunk)
     return chunk
 
-async def mock_tts(chunk):
+async def stage2(chunk):
     await asyncio.sleep(2)
-    print(f'say: {chunk}')
+    print('stage2', chunk)
     return chunk
 
-ai_response_queue = asyncio.Queue()
-finished_tts_queue = asyncio.Queue()
-# chunk -> (in_queue) -> speech buffer -> play speech -> (out_queue) -> chunk
-pipeline = AsyncPipelineWorker(stages=[logger, mock_tts], out_queue=finished_tts_queue)
+pipeline = AsyncPipelineWorker([stage1, stage2])
 pipeline.start()
 
-async def run_infer_task(message: str):
+ai_response_queue = asyncio.Queue()
+async def collect_ai_response(message: str):
     text_stream = get_llm_text_stream(construct_message(message, prompt=config['prompt']))
-
-    chunk_coll = ChunkCollector(min_len=30)
     accum = ''
     async for piece in text_stream:
         # send to ai_response_queue when text is generated
         accum += piece
         await ai_response_queue.put({'q': message, 'a': accum})
 
-        # send to finished_tts_queue when tts chunk is finished
-        chunk = chunk_coll.collect(piece)
-        if chunk:
-            await pipeline.submit({
-                'q': message,
-                'a': accum,
-                'chunk': chunk
-            })
-
-    if chunk_coll.remain_chunk():
-        await pipeline.submit({
-            'q': message,
-            'a': accum,
-            'chunk': chunk_coll.chunk
-        })
-
-infer_worker = AsyncSequentialWorker(run_infer_task, cooldown=2)
+infer_worker = AsyncSequentialWorker(collect_ai_response, cooldown=2)
 infer_worker.start()
-
 
 # start server
 app = FastAPI()
@@ -75,8 +56,15 @@ async def chat(message: str):
     print('\nQ:', message)
     await infer_worker.submit(message)
 
-# @app.post('/commit_response')
-# async def 
+class AiResponse(BaseModel):
+    q: str
+    a: str
+
+@app.post('/publish_ai_response')
+async def publish_ai_response(response: AiResponse):
+    chunks = to_chunks(response.a, min_len = 30)
+    for chunk in chunks:
+        await pipeline.submit(chunk)
 
 # Catches cancel signal from client
 async def async_stream_wrapper(gen):
@@ -117,13 +105,13 @@ async def stream_ai_response(websocket: WebSocket):
 
     await ai_response_manager.run_async_worker(websocket, task=task)
 
-finished_tts_manager = WebSocketManager()
-@app.websocket('/stream_finished_tts')
-async def stream_finished_tts(websocket: WebSocket):
-    await finished_tts_manager.connect(websocket)
+# finished_tts_manager = WebSocketManager()
+# @app.websocket('/stream_finished_tts')
+# async def stream_finished_tts(websocket: WebSocket):
+#     await finished_tts_manager.connect(websocket)
 
-    async def task():
-        result = await finished_tts_queue.get()
-        await finished_tts_manager.broadcast(result)
+#     async def task():
+#         result = await finished_tts_queue.get()
+#         await finished_tts_manager.broadcast(result)
 
-    await finished_tts_manager.run_async_worker(websocket, task=task)
+#     await finished_tts_manager.run_async_worker(websocket, task=task)

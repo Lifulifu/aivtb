@@ -49,6 +49,7 @@ def to_chunks(text: str, min_len: int = 0, separator: str | Sequence[str] = ('ï¼
             chunk = ''
     if len(chunk) > 0:
         chunks.append(chunk)
+    return chunks
 
 
 
