@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from wsmanager import ConnectionManager
 from sse_starlette.sse import EventSourceResponse
 import yaml
 from typing import Callable, AsyncGenerator
@@ -63,7 +62,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-manager = ConnectionManager()
 
 @app.get('/chat')
 async def chat(message: str):
