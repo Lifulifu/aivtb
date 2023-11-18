@@ -7,12 +7,11 @@ load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
 client = AsyncOpenAI(api_key=api_key)
 
-async def get_llm_text_stream(messages: Sequence) -> AsyncGenerator:
+async def get_llm_text_stream(messages: Sequence, temperature: float = 0.7) -> AsyncGenerator:
     res = await client.chat.completions.create(
-        model="ft:gpt-3.5-turbo-1106:personal::8LF3ausT",
-        # model="gpt-3.5-turbo",
+        model="ft:gpt-3.5-turbo-1106:personal::8Lp6MxIS",
         messages=messages,
-        temperature=0.6,
+        temperature=temperature,
         max_tokens=500,
         stream=True
     )

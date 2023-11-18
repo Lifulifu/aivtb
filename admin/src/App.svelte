@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea } from 'flowbite-svelte'
+  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea, NumberInput } from 'flowbite-svelte'
   import { onDestroy, onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { scrollToBottom } from './lib/util';
   import Icon from '@iconify/svelte';
 
-  let aiMessage: string = '';
-  let aiMessagePrefix: string = '<player>';
-  let aiMessagePrefixDropdownOpen: boolean = false;
-  let showAiMessageModal: boolean = false;
+  let userMessage: string = '';
+  let userMessagePrefix: string = '<player>';
+  let userMessagePrefixDropdownOpen: boolean = false;
+  let showUserMessageModal: boolean = false;
+  let temperature: number = 0.7;
 
   type aiResponse = {q: string, a: string};
   let aiResponse: aiResponse | null = {q: '', a: ''};
@@ -24,7 +25,7 @@
   let ytCommentsError: boolean = false;
   let isAtScrollBottom: boolean = true;
 
-  const chatUrl = 'http://localhost:8000/chat';
+  const sendUserMessageUrl = 'http://localhost:8000/send_user_message';
   const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
   const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
   const publishAiResponseUrl = 'http://localhost:8000/publish_ai_response';
@@ -33,7 +34,7 @@
     connectAiResponse();
 
     if (ytCommentsDom) {
-      ytCommentsDom.addEventListener("scroll", () => {
+      ytCommentsDom.addEventListener("scroll", async () => {
         if (
 					ytCommentsDom.scrollTop + ytCommentsDom.clientHeight >=
 					ytCommentsDom.scrollHeight - 2
@@ -42,7 +43,7 @@
         } else {
           isAtScrollBottom = false;
         }
-        tick();
+        await tick();
       })
     }
   })
@@ -104,21 +105,21 @@
   async function sendAiMessage(prefix: string, message: string) {
     isLoading = true;
     message = encodeURI(prefix + message)
-    await fetch(`${chatUrl}?message=${message}`)
+    await fetch(`${sendUserMessageUrl}?message=${message}&temperature=${temperature}`)
   }
 
   function setMessagePrefix(type: string) {
-    aiMessagePrefix = type;
-    aiMessagePrefixDropdownOpen = false;
+    userMessagePrefix = type;
+    userMessagePrefixDropdownOpen = false;
   }
 
   async function onInputSubmit() {
-    await sendAiMessage(aiMessagePrefix, aiMessage);
-    aiMessage = ''
+    await sendAiMessage(userMessagePrefix, userMessage);
+    userMessage = ''
   }
 
   async function onYtCommentClick(commentItem: YtCommentItem) {
-    aiMessage = commentItem.message;
+    userMessage = commentItem.message;
   }
 
   async function publishAiResponse() {
@@ -135,7 +136,7 @@
 <main>
   <div class="container w-full mt-8 flex gap-4">
     <!-- yt comments -->
-    <Card class="min-w-[30ch] space-y-2" padding="none">
+    <Card class="max-w-full flex-grow space-y-2" padding="none">
       <div class="w-full flex flex-col items-center gap-2 p-4">
         <Input bind:value={videoId}/>
         <div class="w-full flex gap-2">
@@ -158,7 +159,7 @@
     </Card>
 
     <div class="flex-grow">
-    <!-- message input -->
+    <!-- user message input -->
       <form class="space-y-2" on:submit|preventDefault={onInputSubmit}>
         <div class="flex gap-2">
           <Button color="alternative"
@@ -169,17 +170,22 @@
 
         <div class="w-full">
           <ButtonGroup class="flex">
-            <Button>{aiMessagePrefix === '' ? 'None' : aiMessagePrefix}</Button>
-            <Dropdown bind:open={aiMessagePrefixDropdownOpen}>
+            <Button>{userMessagePrefix === '' ? 'None' : userMessagePrefix}</Button>
+            <Dropdown bind:open={userMessagePrefixDropdownOpen}>
               <DropdownItem on:click={() => setMessagePrefix('')}>{'None'}</DropdownItem>
               <DropdownItem on:click={() => setMessagePrefix('<player>')}>{'<player>'}</DropdownItem>
               <DropdownItem on:click={() => setMessagePrefix('<instruction>')}>{'<instruction>'}</DropdownItem>
             </Dropdown>
-            <Input class="flex-grow" bind:value={aiMessage}/>
-            <Button color="alternative" class="p-2" on:click={() => showAiMessageModal = true}><Icon icon="mdi:magnify-scan" height={20}/></Button>
+            <Input class="flex-grow" bind:value={userMessage}/>
+            <Button color="alternative" class="p-2" on:click={() => showUserMessageModal = true}>
+              <Icon icon="mdi:magnify-scan" height={20}/>
+            </Button>
           </ButtonGroup>
         </div>
-        <Button type="submit" class="w-full" color="primary">Send</Button>
+        <div class="flex gap-2 w-full">
+          <NumberInput class="w-0 flex-grow" bind:value={temperature} min={0.1} max={2.0} step={0.1}/>
+          <Button type="submit" class="flex-grow" color="primary">Send</Button>
+        </div>
       </form>
 
       <!-- QA streaming display -->
@@ -214,9 +220,9 @@
   </div>
 </main>
 
-<Modal bind:open={showAiMessageModal}>
+<Modal bind:open={showUserMessageModal}>
   <h1>Message</h1>
-  <Textarea bind:value={aiMessage}/>
+  <Textarea bind:value={userMessage}/>
 </Modal>
 
 {#if aiResponseError}

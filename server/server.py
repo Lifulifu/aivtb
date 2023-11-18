@@ -28,13 +28,20 @@ pipeline = AsyncPipelineWorker([stage1, stage2])
 pipeline.start()
 
 ai_response_queue = asyncio.Queue()
-async def collect_ai_response(message: str):
-    text_stream = get_llm_text_stream(construct_message(message, prompt=config['prompt']))
+
+class UserMessageRequest(BaseModel):
+    message: str
+    temperature: float
+
+async def collect_ai_response(req: UserMessageRequest):
+    print('temp', req.temperature)
+    text_stream = get_llm_text_stream(
+        construct_message(req.message, prompt=config['prompt']),
+        temperature=req.temperature)
     accum = ''
     async for piece in text_stream:
-        # send to ai_response_queue when text is generated
         accum += piece
-        await ai_response_queue.put({'q': message, 'a': accum})
+        await ai_response_queue.put({'q': req.message, 'a': accum})
 
 infer_worker = AsyncSequentialWorker(collect_ai_response, cooldown=2)
 infer_worker.start()
@@ -50,11 +57,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get('/chat')
-async def chat(message: str):
+@app.get('/send_user_message')
+async def chat(message: str, temperature: float):
     # Submit message
     print('\nQ:', message)
-    await infer_worker.submit(message)
+    await infer_worker.submit(
+        UserMessageRequest(message=message, temperature=temperature))
 
 class AiResponse(BaseModel):
     q: str
