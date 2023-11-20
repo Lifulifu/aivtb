@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea, NumberInput } from 'flowbite-svelte'
+  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label } from 'flowbite-svelte'
   import { onDestroy, onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { scrollToBottom } from './lib/util';
@@ -16,6 +16,7 @@
   let aiResponseWs: WebSocket;
   let aiResponseError: boolean = false;
   let isLoading: boolean = false;
+  let playbackDeviceId: number = -1;
 
   let videoId: string = '';
   type YtCommentItem = {name: string, message: string, time: string}
@@ -153,7 +154,7 @@
     await fetch(publishAiResponseUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(aiResponse)
+      body: JSON.stringify({ ...aiResponse, device: playbackDeviceId })
     }).catch(e => {
       console.error(e)
     })
@@ -209,8 +210,11 @@
             </Button>
           </ButtonGroup>
         </div>
-        <div class="flex gap-2 w-full">
-          <NumberInput class="w-0 flex-grow" bind:value={temperature} min={0.1} max={2.0} step={0.1}/>
+        <div class="flex items-end gap-2 w-full">
+          <Label class="flex-grow">
+            Temperature
+            <NumberInput bind:value={temperature} min={0.1} max={2.0} step={0.1}/>
+          </Label>
           <Button type="submit" class="flex-grow" color="primary">Send</Button>
         </div>
       </form>
@@ -235,23 +239,30 @@
             {aiResponse.a}
           {/if}
         </Card>
-        <div class="flex">
+        <div class="flex gap-2">
           <ButtonGroup>
             <Button color='alternative' on:click={() => aiResponseWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectAiResponse}>Connect</Button>
           </ButtonGroup>
-          <Button class='ml-auto' color='primary' on:click={publishAiResponse}>Publish</Button>
+        </div>
+        <div class="flex items-end gap-2">
+          <Label class="flex-grow">
+            Playback device
+            <NumberInput class='ml-auto' bind:value={playbackDeviceId}/>
+          </Label>
+          <Button color='primary' class="flex-grow" on:click={publishAiResponse}>Publish</Button>
         </div>
       </Card>
 
       <!-- Subtitle display -->
-      <Card class="mt-8">
+      <Card class="mt-8 max-w-full">
         <p class="whitespace-pre-wrap">{subtitle}</p>
-        <div class="flex">
+        <div class="flex mt-2">
           <ButtonGroup>
             <Button color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectSubtitle}>Connect</Button>
           </ButtonGroup>
+          <Button class='ml-auto' color='alternative' on:click={() => subtitle = ''}>Clear</Button>
         </div>
       </Card>
     </div>

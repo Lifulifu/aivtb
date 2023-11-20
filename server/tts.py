@@ -8,8 +8,8 @@ load_dotenv()
 speech_key = os.getenv("SPEECH_KEY")
 service_region = os.getenv("SPEECH_REGION")
 
-playback_device_id = int(os.getenv("PLAYBACK_DEVICE_ID"))
-print('playback device is "', get_device_name(playback_device_id), '"')
+default_playback_device_id = int(os.getenv("PLAYBACK_DEVICE_ID"))
+print('default playback device is "', get_device_name(default_playback_device_id), '"')
 
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
 speech_config.speech_synthesis_voice_name = "zh-TW-HsiaoChenNeural"
@@ -20,9 +20,10 @@ def get_tts_audio(text: str):
     result = speech_synthesizer.speak_text(text)
     return AudioDataStream(result)
 
-def play_speech(audio: AudioDataStream):
+def play_speech(audio: AudioDataStream, device_id: int):
+    device_id = default_playback_device_id if device_id == -1 else int(device_id)
     temp_dir = '.temp/'
     os.makedirs(temp_dir, exist_ok=True)
     temp_file_path = os.path.join(temp_dir, '_speech.wav')
     audio.save_to_wav_file(temp_file_path)
-    play_wav(temp_file_path, playback_device_id)
+    play_wav(temp_file_path, device_id)

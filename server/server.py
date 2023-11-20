@@ -16,20 +16,16 @@ class UserMessageRequest(BaseModel):
     message: str
     temperature: float
 
-class AiResponse(BaseModel):
-    q: str
-    a: str
-
 # Functionality for the 'publish_ai_response' and 'stream_subtitle' endpoints
 subtitle_queue = asyncio.Queue()
 
-async def tts_stage(chunk: str):
-    audio = get_tts_audio(chunk)
-    return { 'chunk': chunk, 'audio': audio }
+async def tts_stage(req):
+    audio = get_tts_audio(req['chunk'])
+    return { 'chunk': req['chunk'], 'device': req['device'], 'audio': audio }
 
-async def play_stage(chunk_with_audio):
-    play_speech(chunk_with_audio['audio'])
-    await subtitle_queue.put(chunk_with_audio['chunk']) # will be sent to subtitle_queue
+async def play_stage(req):
+    play_speech(req['audio'], req['device'])
+    await subtitle_queue.put(req['chunk']) # will be sent to subtitle_queue
     await asyncio.sleep(0.5)
 
 publish_worker = AsyncPipelineWorker([tts_stage, play_stage], debug=True, process_task_names=['tts', 'play'])
@@ -70,11 +66,17 @@ async def chat(message: str, temperature: float):
     await infer_worker.submit(
         UserMessageRequest(message=message, temperature=temperature))
 
+class AiResponse(BaseModel):
+    q: str
+    a: str
+    device: int = -1
+
 @app.post('/publish_ai_response')
 async def publish_ai_response(response: AiResponse):
     chunks = to_chunks(response.a, min_len = 30)
+    await publish_worker.submit({ 'chunk': response.q, 'device': response.device })
     for chunk in chunks:
-        await publish_worker.submit(chunk)
+        await publish_worker.submit({ 'chunk': chunk, 'device': response.device })
 
 # websocket endpoints
 yt_comments_manager = WebSocketManager()
