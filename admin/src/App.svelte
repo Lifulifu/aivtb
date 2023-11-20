@@ -25,13 +25,19 @@
   let ytCommentsError: boolean = false;
   let isAtScrollBottom: boolean = true;
 
+  let subtitle: string = '';
+  let subtitleWs: WebSocket;
+  let subtitleError: boolean = false;
+
   const sendUserMessageUrl = 'http://localhost:8000/send_user_message';
+  const publishAiResponseUrl = 'http://localhost:8000/publish_ai_response';
   const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
   const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
-  const publishAiResponseUrl = 'http://localhost:8000/publish_ai_response';
+  const subtitleUrl = 'ws://localhost:8000/stream_subtitle';
 
   onMount(() => {
     connectAiResponse();
+    connectSubtitle();
 
     if (ytCommentsDom) {
       ytCommentsDom.addEventListener("scroll", async () => {
@@ -99,6 +105,27 @@
     ytCommentsWs.onerror = (e) => {
       console.error(e)
       ytCommentsError = true;
+    }
+  }
+
+  async function connectSubtitle() {
+    if (subtitleWs) subtitleWs.close();
+    subtitleWs = new WebSocket(subtitleUrl);
+    subtitleWs.onmessage = (e) => {
+      subtitleError = false;
+      try {
+        const data = JSON.parse(e.data)
+        if(data) {
+          console.log(data)
+          subtitle = subtitle + data;
+        }
+      } catch (e) {
+        console.log(e)
+      }
+    }
+    subtitleWs.onerror = (e) => {
+      console.error(e)
+      subtitleError = true;
     }
   }
 
@@ -214,6 +241,17 @@
             <Button color='primary' on:click={connectAiResponse}>Connect</Button>
           </ButtonGroup>
           <Button class='ml-auto' color='primary' on:click={publishAiResponse}>Publish</Button>
+        </div>
+      </Card>
+
+      <!-- Subtitle display -->
+      <Card class="mt-8">
+        <p class="whitespace-pre-wrap">{subtitle}</p>
+        <div class="flex">
+          <ButtonGroup>
+            <Button color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
+            <Button color='primary' on:click={connectSubtitle}>Connect</Button>
+          </ButtonGroup>
         </div>
       </Card>
     </div>

@@ -1,40 +1,45 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from wsmanager import WebSocketManager
-import yaml
+from config import config
 import asyncio
 import pytchat
-from main import construct_message
-from llm import get_llm_text_stream, to_chunks
 from worker import AsyncSequentialWorker, AsyncPipelineWorker
 from pydantic import BaseModel
+from azure.cognitiveservices.speech import AudioDataStream
+from contextlib import asynccontextmanager
 
-
-# load config
-with open('config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
-
-# setup workers
-async def stage1(chunk):
-    print('stage1:', chunk)
-    return chunk
-
-async def stage2(chunk):
-    await asyncio.sleep(2)
-    print('stage2', chunk)
-    return chunk
-
-pipeline = AsyncPipelineWorker([stage1, stage2])
-pipeline.start()
-
-ai_response_queue = asyncio.Queue()
+from llm import get_llm_text_stream, to_chunks, construct_message
+from tts import get_tts_audio, play_speech
 
 class UserMessageRequest(BaseModel):
     message: str
     temperature: float
 
+class AiResponse(BaseModel):
+    q: str
+    a: str
+
+# Functionality for the 'publish_ai_response' and 'stream_subtitle' endpoints
+subtitle_queue = asyncio.Queue()
+
+async def tts_stage(chunk: str):
+    audio = get_tts_audio(chunk)
+    return { 'chunk': chunk, 'audio': audio }
+
+async def play_stage(chunk_with_audio):
+    play_speech(chunk_with_audio['audio'])
+    await subtitle_queue.put(chunk_with_audio['chunk']) # will be sent to subtitle_queue
+    await asyncio.sleep(0.5)
+
+publish_worker = AsyncPipelineWorker([tts_stage, play_stage], debug=True, process_task_names=['tts', 'play'])
+publish_worker.start()
+
+
+# Functionality for the 'send_user_message' and 'stream_ai_response' endpoints
+ai_response_queue = asyncio.Queue()
+
 async def collect_ai_response(req: UserMessageRequest):
-    print('temp', req.temperature)
     text_stream = get_llm_text_stream(
         construct_message(req.message, prompt=config['prompt']),
         temperature=req.temperature)
@@ -57,6 +62,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# get/post endpoints
 @app.get('/send_user_message')
 async def chat(message: str, temperature: float):
     # Submit message
@@ -64,24 +70,13 @@ async def chat(message: str, temperature: float):
     await infer_worker.submit(
         UserMessageRequest(message=message, temperature=temperature))
 
-class AiResponse(BaseModel):
-    q: str
-    a: str
-
 @app.post('/publish_ai_response')
 async def publish_ai_response(response: AiResponse):
     chunks = to_chunks(response.a, min_len = 30)
     for chunk in chunks:
-        await pipeline.submit(chunk)
+        await publish_worker.submit(chunk)
 
-# Catches cancel signal from client
-async def async_stream_wrapper(gen):
-    try:
-        async for item in gen:
-            yield item
-    except asyncio.CancelledError:
-        print("stream client cancelled")
-
+# websocket endpoints
 yt_comments_manager = WebSocketManager()
 @app.websocket('/stream_yt_comments/{video_id}')
 async def stream_yt_comments(websocket: WebSocket, video_id: str):
@@ -113,13 +108,21 @@ async def stream_ai_response(websocket: WebSocket):
 
     await ai_response_manager.run_async_worker(websocket, task=task)
 
-# finished_tts_manager = WebSocketManager()
-# @app.websocket('/stream_finished_tts')
-# async def stream_finished_tts(websocket: WebSocket):
-#     await finished_tts_manager.connect(websocket)
+subtitle_manager = WebSocketManager()
+@app.websocket('/stream_subtitle')
+async def stream_subtitle(websocket: WebSocket):
+    await subtitle_manager.connect(websocket)
 
-#     async def task():
-#         result = await finished_tts_queue.get()
-#         await finished_tts_manager.broadcast(result)
+    async def task():
+        result = await subtitle_queue.get()
+        print('broadcast:', result)
+        await subtitle_manager.broadcast(result)
 
-#     await finished_tts_manager.run_async_worker(websocket, task=task)
+    await subtitle_manager.run_async_worker(websocket, task=task)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    print('server shutdown')
+    await infer_worker.end()
+    await publish_worker.end()
