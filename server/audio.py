@@ -1,5 +1,7 @@
 import pyaudio
 import wave
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 def list_devices():
     p = pyaudio.PyAudio()
@@ -16,7 +18,15 @@ def get_device_name(id: int):
         return p.get_device_info_by_host_api_device_index(0, id).get('name')
     return None
 
-def play_wav(filename, device_index):
+executor = ThreadPoolExecutor(max_workers=1)
+
+def play_wav_blocking(stream, wf):
+    data = wf.readframes(1024)
+    while data:
+        stream.write(data)
+        data = wf.readframes(1024)
+
+async def play_wav(filename, device_index):
     wf = wave.open(filename, 'rb')
     p = pyaudio.PyAudio()
     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
@@ -25,14 +35,13 @@ def play_wav(filename, device_index):
                     output=True,
                     output_device_index=device_index)
 
-    data = wf.readframes(1024)
-    while data:
-        stream.write(data)
-        data = wf.readframes(1024)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(executor, play_wav_blocking, stream, wf)
 
     stream.stop_stream()
     stream.close()
     p.terminate()
+
 
 if __name__ == "__main__":
     list_devices()

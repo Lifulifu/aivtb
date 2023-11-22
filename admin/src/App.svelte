@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label } from 'flowbite-svelte'
+  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Toggle } from 'flowbite-svelte'
   import { onDestroy, onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { scrollToBottom } from './lib/util';
@@ -24,7 +24,7 @@
   let ytCommentsWs: WebSocket;
   let ytCommentsDom: any = null;
   let ytCommentsError: boolean = false;
-  let isAtScrollBottom: boolean = true;
+  let autoScroll: boolean = true;
 
   let subtitle: string = '';
   let subtitleWs: WebSocket;
@@ -39,29 +39,14 @@
   onMount(() => {
     connectAiResponse();
     connectSubtitle();
-
-    if (ytCommentsDom) {
-      ytCommentsDom.addEventListener("scroll", async () => {
-        if (
-					ytCommentsDom.scrollTop + ytCommentsDom.clientHeight >=
-					ytCommentsDom.scrollHeight - 2
-				) {
-          isAtScrollBottom = true;
-        } else {
-          isAtScrollBottom = false;
-        }
-        await tick();
-      })
-    }
   })
 
   onDestroy(() => {
     aiResponseWs.close();
     ytCommentsWs.close();
-    ytCommentsDom.removeEventListener("scroll");
   })
 
-  $: if (ytCommentsDom && isAtScrollBottom && ytComments) autoScrollYtComments()
+  $: if (ytCommentsDom && autoScroll && ytComments) autoScrollYtComments()
 
   async function autoScrollYtComments() {
     await tick();
@@ -162,17 +147,19 @@
 </script>
 
 <main>
-  <div class="container w-full mt-8 flex gap-4">
+  <div class="container w-full mt-8 space-y-4 lg:grid grid-cols-2 items-start gap-4">
     <!-- yt comments -->
-    <Card class="max-w-full flex-grow space-y-2" padding="none">
+    <Card class="max-w-full space-y-2" padding="none">
       <div class="w-full flex flex-col items-center gap-2 p-4">
         <Input bind:value={videoId}/>
-        <div class="w-full flex gap-2">
+        <div class="w-full flex gap-2 items-center">
           <ButtonGroup>
             <Button color='alternative' on:click={() => ytCommentsWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectYtComments}>Connect</Button>
           </ButtonGroup>
-          <Button class='ml-auto' color='alternative' on:click={() => ytComments = []}>Clear</Button>
+          <Label class='ml-auto'>auto scroll</Label>
+          <Toggle bind:checked={autoScroll}/>
+          <Button color='alternative' on:click={() => ytComments = []}>Clear</Button>
         </div>
       </div>
       <ol class="max-h-[40ch] overflow-y-auto" bind:this={ytCommentsDom}>
@@ -186,7 +173,7 @@
       </ol>
     </Card>
 
-    <div class="flex-grow">
+    <div class="">
     <!-- user message input -->
       <form class="space-y-2" on:submit|preventDefault={onInputSubmit}>
         <div class="flex gap-2">

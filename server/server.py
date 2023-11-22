@@ -24,7 +24,7 @@ async def tts_stage(req):
     return { 'chunk': req['chunk'], 'device': req['device'], 'audio': audio }
 
 async def play_stage(req):
-    play_speech(req['audio'], req['device'])
+    await play_speech(req['audio'], req['device'])
     await subtitle_queue.put(req['chunk']) # will be sent to subtitle_queue
     await asyncio.sleep(0.5)
 
