@@ -2,6 +2,7 @@ from openai import AsyncOpenAI
 from typing import AsyncGenerator, Sequence, Optional
 import os
 from dotenv import load_dotenv
+from emoji import EMOJI_DATA
 
 load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
@@ -50,6 +51,26 @@ def to_chunks(text: str, min_len: int = 0, separator: str | Sequence[str] = ('�
         chunks.append(chunk)
     return chunks
 
+def add_target_after_consecutive_group(inp: str, target: str, group: Sequence):
+    if inp == '': return ''
+    result = ''
+    for i in range(len(inp)):
+        result += inp[i]
+        if inp[i] in group and (i == len(inp)-1 or inp[i+1] not in group):
+            result += target
+    return result
+
+def remove_prefix(text: str):
+    targets = ['<instruction>', '<player>']
+    for target in targets:
+        text = text.replace(target, '')
+    return text
+
+def add_punctuation(text: str):
+    text = add_target_after_consecutive_group(text, '。', '～')
+    text = add_target_after_consecutive_group(text, '。', EMOJI_DATA)
+    return text
+
 def construct_message(message: str, prompt: object):
     return [
         {"role": "system", "content": prompt['system']},
@@ -58,3 +79,5 @@ def construct_message(message: str, prompt: object):
         {"role": "user", "content": message}
     ]
 
+if __name__ == '__main__':
+    pass

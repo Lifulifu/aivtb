@@ -136,10 +136,11 @@
   }
 
   async function publishAiResponse() {
+    const prefix = aiResponse?.q.startsWith('<player>') ? '<player>' : '<instruction>'
     await fetch(publishAiResponseUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...aiResponse, device: playbackDeviceId })
+      body: JSON.stringify({ ...aiResponse, prefix: prefix, device: playbackDeviceId })
     }).catch(e => {
       console.error(e)
     })

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from azure.cognitiveservices.speech import AudioDataStream
 from contextlib import asynccontextmanager
 
-from llm import get_llm_text_stream, to_chunks, construct_message
+from llm import get_llm_text_stream, to_chunks, construct_message, add_punctuation, remove_prefix
 from tts import get_tts_audio, play_speech
 
 class UserMessageRequest(BaseModel):
@@ -20,13 +20,12 @@ class UserMessageRequest(BaseModel):
 subtitle_queue = asyncio.Queue()
 
 async def tts_stage(req):
-    audio = get_tts_audio(req['chunk'])
-    return { 'chunk': req['chunk'], 'device': req['device'], 'audio': audio }
+    audio = get_tts_audio(req['processed'])
+    return { **req, 'audio': audio }
 
 async def play_stage(req):
     await play_speech(req['audio'], req['device'])
-    await subtitle_queue.put(req['chunk']) # will be sent to subtitle_queue
-    await asyncio.sleep(0.5)
+    await subtitle_queue.put(req['original']) # will be sent to subtitle_queue
 
 publish_worker = AsyncPipelineWorker([tts_stage, play_stage], debug=True, process_task_names=['tts', 'play'])
 publish_worker.start()
@@ -67,16 +66,31 @@ async def chat(message: str, temperature: float):
         UserMessageRequest(message=message, temperature=temperature))
 
 class AiResponse(BaseModel):
+    prefix: str
     q: str
     a: str
     device: int = -1
 
 @app.post('/publish_ai_response')
 async def publish_ai_response(response: AiResponse):
-    chunks = to_chunks(response.a, min_len = 30)
-    await publish_worker.submit({ 'chunk': response.q, 'device': response.device })
-    for chunk in chunks:
-        await publish_worker.submit({ 'chunk': chunk, 'device': response.device })
+    original = []
+    processed = []
+    print(response)
+
+    # speak question only if it is player message
+    if response.prefix == '<player>':
+        chunks = to_chunks(remove_prefix(response.q))
+        original.extend(chunks)
+        processed.extend(
+            list(map(lambda chunk: add_punctuation(chunk), chunks)))
+
+    chunks = to_chunks(response.a)
+    original.extend(chunks)
+    processed.extend(
+        list(map(lambda chunk: add_punctuation(chunk), chunks)))
+
+    for ori_chunk, proc_chunk in zip(original, processed):
+        await publish_worker.submit({ 'original': ori_chunk, 'processed': proc_chunk, 'device': response.device })
 
 # websocket endpoints
 yt_comments_manager = WebSocketManager()
