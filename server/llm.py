@@ -10,33 +10,14 @@ client = AsyncOpenAI(api_key=api_key)
 
 async def get_llm_text_stream(messages: Sequence, temperature: float = 0.7) -> AsyncGenerator:
     res = await client.chat.completions.create(
-        model="ft:gpt-3.5-turbo-1106:personal::8Lp6MxIS",
+        model="ft:gpt-3.5-turbo-0613:personal::8O6si5rh",
         messages=messages,
         temperature=temperature,
-        max_tokens=500,
+        max_tokens=1000,
         stream=True
     )
     async for piece in res:
         yield piece.choices[0].delta.content or ''
-
-class ChunkCollector():
-    def __init__(self, min_len: int = 0, separator: str | Sequence[str] = ('，', '。', ',', '.', '\n')):
-        self.separator = (separator,) if isinstance(separator, str) else separator
-        self.min_len = min_len
-        self.chunk = ''
-
-    def collect(self, piece: str):
-        for char in piece:
-            self.chunk += char
-            if char in self.separator:
-                if len(self.chunk) >= self.min_len:
-                    chunk = self.chunk
-                    self.chunk = ''
-                    return chunk
-        return None
-
-    def remain_chunk(self):
-        return len(self.chunk) > 0
 
 def to_chunks(text: str, min_len: int = 0, separator: str | Sequence[str] = ('。', '，', '！', '～', '\n')):
     chunks = []

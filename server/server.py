@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from wsmanager import WebSocketManager
-from config import config
+import config
 import asyncio
 import pytchat
 from worker import AsyncSequentialWorker, AsyncPipelineWorker
@@ -36,7 +36,7 @@ ai_response_queue = asyncio.Queue()
 
 async def collect_ai_response(req: UserMessageRequest):
     text_stream = get_llm_text_stream(
-        construct_message(req.message, prompt=config['prompt']),
+        construct_message(req.message, prompt=config.prompt),
         temperature=req.temperature)
     accum = ''
     async for piece in text_stream:
