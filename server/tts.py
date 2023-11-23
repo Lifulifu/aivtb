@@ -3,6 +3,7 @@ from azure.cognitiveservices.speech import AudioDataStream
 from audio import play_wav, get_device_name
 import os
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 speech_key = os.getenv("SPEECH_KEY")
@@ -14,10 +15,12 @@ print('default playback device is "', get_device_name(default_playback_device_id
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
 speech_config.speech_synthesis_voice_name = "zh-TW-HsiaoChenNeural"
 
-def get_tts_audio(text: str):
+async def get_tts_audio(text: str):
     speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm)
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-    result = speech_synthesizer.speak_text_async(text).get()
+    result = speech_synthesizer.speak_text_async(text)
+    await asyncio.sleep(0)
+    result = result.get()
     return AudioDataStream(result)
 
 async def play_speech(audio: AudioDataStream, device_id: int):

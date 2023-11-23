@@ -20,7 +20,7 @@ class UserMessageRequest(BaseModel):
 subtitle_queue = asyncio.Queue()
 
 async def tts_stage(req):
-    audio = get_tts_audio(req['processed'])
+    audio = await get_tts_audio(req['processed'])
     return { **req, 'audio': audio }
 
 async def play_stage(req):
@@ -79,12 +79,12 @@ async def publish_ai_response(response: AiResponse):
 
     # speak question only if it is player message
     if response.prefix == '<player>':
-        chunks = to_chunks(remove_prefix(response.q))
+        chunks = to_chunks(remove_prefix(response.q), min_len=20)
         original.extend(chunks)
         processed.extend(
             list(map(lambda chunk: add_punctuation(chunk), chunks)))
 
-    chunks = to_chunks(response.a)
+    chunks = to_chunks(response.a, min_len=20)
     original.extend(chunks)
     processed.extend(
         list(map(lambda chunk: add_punctuation(chunk), chunks)))
