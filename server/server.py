@@ -8,12 +8,13 @@ from worker import AsyncSequentialWorker, AsyncPipelineWorker
 from pydantic import BaseModel
 from azure.cognitiveservices.speech import AudioDataStream
 from contextlib import asynccontextmanager
+from typing import List
 
-from llm import get_llm_text_stream, to_chunks, construct_message, add_punctuation, remove_prefix
+from llm import get_llm_text_stream, to_chunks, construct_message, add_punctuation, remove_prefix, have_prefix
 from tts import get_tts_audio, play_speech
 
 class UserMessageRequest(BaseModel):
-    message: str
+    messages: List[dict[str, str]]
     temperature: float
 
 # Functionality for the 'publish_ai_response' and 'stream_subtitle' endpoints
@@ -30,18 +31,17 @@ async def play_stage(req):
 publish_worker = AsyncPipelineWorker([tts_stage, play_stage], debug=True, process_task_names=['tts', 'play'])
 publish_worker.start()
 
-
 # Functionality for the 'send_user_message' and 'stream_ai_response' endpoints
 ai_response_queue = asyncio.Queue()
 
 async def collect_ai_response(req: UserMessageRequest):
     text_stream = get_llm_text_stream(
-        construct_message(req.message, prompt=config.prompt),
+        construct_message(req.messages, prompt=config.prompt),
         temperature=req.temperature)
     accum = ''
     async for piece in text_stream:
         accum += piece
-        await ai_response_queue.put({'q': req.message, 'a': accum})
+        await ai_response_queue.put([ *req.messages, {"role": "assistant", "content": accum} ])
 
 infer_worker = AsyncSequentialWorker(collect_ai_response, cooldown=2)
 infer_worker.start()
@@ -58,15 +58,13 @@ app.add_middleware(
 )
 
 # get/post endpoints
-@app.get('/send_user_message')
-async def chat(message: str, temperature: float):
+@app.post('/send_user_message')
+async def chat(req: UserMessageRequest):
     # Submit message
-    print('\nQ:', message)
-    await infer_worker.submit(
-        UserMessageRequest(message=message, temperature=temperature))
+    print('\nQ:', req.messages)
+    await infer_worker.submit(req)
 
 class AiResponse(BaseModel):
-    prefix: str
     q: str
     a: str
     device: int = -1
@@ -75,10 +73,10 @@ class AiResponse(BaseModel):
 async def publish_ai_response(response: AiResponse):
     original = []
     processed = []
-    print(response)
+    print('publish', response)
 
     # speak question only if it is player message
-    if response.prefix == '<player>':
+    if not have_prefix(response.q):
         chunks = to_chunks(remove_prefix(response.q), min_len=20)
         original.extend(chunks)
         processed.extend(

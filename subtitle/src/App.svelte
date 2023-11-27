@@ -4,6 +4,10 @@
   const subtitleUrl = 'ws://localhost:8000/stream_subtitle';
   let subtitle: string[] = [];
   let subtitleWs: WebSocket;
+  const testSubtitle = "測試測試測試測試測試測試測試\n測試測試測試測試測試測試測試測試測試"
+
+  let timer: number;
+  const SUBTITLE_TTL = 8000;
 
   onMount(async () => {
     await connectSubtitle();
@@ -22,12 +26,20 @@
       } catch (e) {
         console.log(e)
       }
+
+      clearTimeout(timer);
+      timer = setTimeout(() => (subtitle = []), SUBTITLE_TTL);
     }
     subtitleWs.onerror = (e) => {
       console.error(e)
     }
   }
 </script>
+
+<div class="flex p-4 gap-2 items-center">
+  <button class="bg-gray-300 py-2 px-4 rounded-md" on:click={() => subtitle = [testSubtitle]}>Populate</button>
+  <button class="bg-gray-300 py-2 px-4 rounded-md" on:click={() => subtitle = []}>Clear</button>
+</div>
 
 <div class="subtitle w-full text-center absolute bottom-8 left-1/2 -translate-x-1/2">
   {subtitle}
@@ -48,6 +60,7 @@
     font-size: 4rem;
     font-weight: 800;
     padding: 0 10% 0;
+    font-family: 標楷體;
 
     text-shadow:
       var(--text-border-width) var(--text-border-width) 0 #000,

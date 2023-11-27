@@ -6,17 +6,15 @@
   import Icon from '@iconify/svelte';
 
   let userMessage: string = '';
-  let userMessagePrefix: string = '<player>';
-  let userMessagePrefixDropdownOpen: boolean = false;
   let showUserMessageModal: boolean = false;
   let temperature: number = 0.7;
 
-  type aiResponse = {q: string, a: string};
-  let aiResponse: aiResponse | null = {q: '', a: ''};
+  let aiResponse: {role: string, content: string}[] = [];
   let aiResponseWs: WebSocket;
   let aiResponseError: boolean = false;
   let isLoading: boolean = false;
   let playbackDeviceId: number = -1;
+  $: canPublishAiResponse = aiResponse?.length >= 2;
 
   let videoId: string = '';
   type YtCommentItem = {name: string, message: string, time: string}
@@ -63,7 +61,7 @@
         const data = JSON.parse(e.data)
         if(data) aiResponse = data;
       } catch (e) {
-        aiResponse = null
+        aiResponse = []
       }
     }
     aiResponseWs.onerror = (e) => {
@@ -102,8 +100,7 @@
       try {
         const data = JSON.parse(e.data)
         if(data) {
-          console.log(data)
-          subtitle = subtitle + data;
+          subtitle = subtitle + '\n' + data;
         }
       } catch (e) {
         console.log(e)
@@ -115,20 +112,29 @@
     }
   }
 
-  async function sendAiMessage(prefix: string, message: string) {
+  async function sendAiMessage(message: string) {
     isLoading = true;
-    message = encodeURI(prefix + message)
-    await fetch(`${sendUserMessageUrl}?message=${message}&temperature=${temperature}`)
-  }
-
-  function setMessagePrefix(type: string) {
-    userMessagePrefix = type;
-    userMessagePrefixDropdownOpen = false;
+    await fetch(sendUserMessageUrl, {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [...aiResponse, { role: "user", content: message }],
+        temperature: temperature
+      })
+    }).catch(e => {
+      console.error(e)
+    })
   }
 
   async function onInputSubmit() {
-    await sendAiMessage(userMessagePrefix, userMessage);
+    await sendAiMessage(userMessage);
     userMessage = ''
+  }
+
+  async function onInputClearAndSend() {
+    aiResponse = [];
+    await sendAiMessage(userMessage);
+    userMessage = '';
   }
 
   async function onYtCommentClick(commentItem: YtCommentItem) {
@@ -136,11 +142,14 @@
   }
 
   async function publishAiResponse() {
-    const prefix = aiResponse?.q.startsWith('<player>') ? '<player>' : '<instruction>'
+    if (!canPublishAiResponse) return;
+    const q = aiResponse[aiResponse.length - 2].content;
+    const a = aiResponse[aiResponse.length - 1].content;
+    // only read if it is a user question
     await fetch(publishAiResponseUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...aiResponse, prefix: prefix, device: playbackDeviceId })
+      body: JSON.stringify({ q, a, device: playbackDeviceId })
     }).catch(e => {
       console.error(e)
     })
@@ -179,24 +188,18 @@
       <form class="space-y-2" on:submit|preventDefault={onInputSubmit}>
         <div class="flex gap-2">
           <Button color="alternative"
-            on:click={() => sendAiMessage('', '<instruction>自我介紹')}>自我介紹</Button>
+            on:click={() => sendAiMessage('<instruction>自我介紹')}>自我介紹</Button>
           <Button color="alternative"
-            on:click={() => sendAiMessage('', '<instruction>雜談')}>雜談</Button>
+            on:click={() => sendAiMessage('<instruction>雜談')}>雜談</Button>
+          <Button color="alternative"
+            on:click={() => sendAiMessage('<instruction>繼續')}>繼續</Button>
         </div>
 
-        <div class="w-full">
-          <ButtonGroup class="flex">
-            <Button>{userMessagePrefix === '' ? 'None' : userMessagePrefix}</Button>
-            <Dropdown bind:open={userMessagePrefixDropdownOpen}>
-              <DropdownItem on:click={() => setMessagePrefix('')}>{'None'}</DropdownItem>
-              <DropdownItem on:click={() => setMessagePrefix('<player>')}>{'<player>'}</DropdownItem>
-              <DropdownItem on:click={() => setMessagePrefix('<instruction>')}>{'<instruction>'}</DropdownItem>
-            </Dropdown>
-            <Input class="flex-grow" bind:value={userMessage}/>
-            <Button color="alternative" class="p-2" on:click={() => showUserMessageModal = true}>
-              <Icon icon="mdi:magnify-scan" height={20}/>
-            </Button>
-          </ButtonGroup>
+        <div class="w-full flex gap-2">
+          <Input class="flex-grow" bind:value={userMessage}/>
+          <Button color="alternative" class="p-2" on:click={() => showUserMessageModal = true}>
+            <Icon icon="mdi:magnify-scan" height={20}/>
+          </Button>
         </div>
         <div class="flex items-end gap-2 w-full">
           <Label class="flex-grow">
@@ -204,54 +207,50 @@
             <NumberInput bind:value={temperature} min={0.1} max={2.0} step={0.1}/>
           </Label>
           <Button type="submit" class="flex-grow" color="primary">Send</Button>
+          <Button class="flex-grow" color="primary" on:click={onInputClearAndSend}>Clear & Send</Button>
         </div>
       </form>
 
       <!-- QA streaming display -->
       <Card class="mt-8 max-w-full space-y-2 bg-gray-200" padding="md">
-        <Card class="max-w-full">
-          {#if isLoading || !aiResponse}
-            <div class="flex justify-center">
-              <Spinner/>
-            </div>
-          {:else}
-            {aiResponse.q}
-          {/if}
-        </Card>
-        <Card class="max-w-full">
-          {#if isLoading || !aiResponse}
-            <div class="flex justify-center">
-              <Spinner/>
-            </div>
-          {:else}
-            {aiResponse.a}
-          {/if}
-        </Card>
         <div class="flex gap-2">
           <ButtonGroup>
             <Button color='alternative' on:click={() => aiResponseWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectAiResponse}>Connect</Button>
           </ButtonGroup>
+          <Button class="ml-auto" color="alternative" on:click={() => aiResponse = []}>Clear</Button>
         </div>
+        {#if isLoading || !aiResponse}
+          <div class="flex justify-center">
+            <Spinner/>
+          </div>
+        {:else if canPublishAiResponse}
+          {#each aiResponse as res}
+            <Card class="max-w-full" padding="md">
+              <p class="text-xs font-bold text-gray-400">{res.role}</p>
+              <p>{res.content}</p>
+            </Card>
+          {/each}
+        {/if}
         <div class="flex items-end gap-2">
           <Label class="flex-grow">
             Playback device
             <NumberInput class='ml-auto' bind:value={playbackDeviceId}/>
           </Label>
-          <Button color='primary' class="flex-grow" on:click={publishAiResponse}>Publish</Button>
+          <Button color='primary' class="flex-grow" on:click={publishAiResponse} disabled={!canPublishAiResponse}>Publish</Button>
         </div>
       </Card>
 
       <!-- Subtitle display -->
-      <Card class="mt-8 max-w-full">
-        <p class="whitespace-pre-wrap">{subtitle}</p>
-        <div class="flex mt-2">
+      <Card class="mt-8 space-y-2 max-w-full">
+        <div class="flex">
           <ButtonGroup>
             <Button color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectSubtitle}>Connect</Button>
           </ButtonGroup>
           <Button class='ml-auto' color='alternative' on:click={() => subtitle = ''}>Clear</Button>
         </div>
+        <p class="whitespace-pre-wrap">{subtitle}</p>
       </Card>
     </div>
   </div>
