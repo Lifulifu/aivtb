@@ -112,13 +112,14 @@
     }
   }
 
-  async function sendAiMessage(message: string) {
+  async function sendAiMessage(message: string = '') {
     isLoading = true;
+    const messages = message ? [...aiResponse, { role: "user", content: message }] : aiResponse;
     await fetch(sendUserMessageUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: [...aiResponse, { role: "user", content: message }],
+        messages: messages,
         temperature: temperature
       })
     }).catch(e => {
@@ -153,6 +154,21 @@
     }).catch(e => {
       console.error(e)
     })
+  }
+
+  function deleteAiResponse(response: any) {
+    aiResponse = aiResponse.filter((r) => r !== response);
+  }
+
+  function regenerateAiResponse(response: any) {
+    const _aiResponse = []
+    // delete all messages after response
+    for(let res of aiResponse) {
+      if (res === response) break;
+      _aiResponse.push(res);
+    }
+    aiResponse = _aiResponse;
+    sendAiMessage();
   }
 </script>
 
@@ -227,8 +243,18 @@
         {:else if canPublishAiResponse}
           {#each aiResponse as res}
             <Card class="max-w-full" padding="md">
-              <p class="text-xs font-bold text-gray-400">{res.role}</p>
-              <p>{res.content}</p>
+              <div class="flex items-center">
+                <div class="flex-grow">
+                  <p class="text-xs font-bold text-gray-400">{res.role}</p>
+                  <p>{res.content}</p>
+                </div>
+                <div class="flex gap-2">
+                  {#if res.role === 'assistant'}
+                    <Button class="p-2" on:click={() => regenerateAiResponse(res)}><Icon icon="material-symbols:refresh-rounded"/></Button>
+                  {/if}
+                  <Button class="p-2" color="alternative" on:click={() => deleteAiResponse(res)}><Icon icon="material-symbols:close-small-rounded"/></Button>
+                </div>
+              </div>
             </Card>
           {/each}
         {/if}
