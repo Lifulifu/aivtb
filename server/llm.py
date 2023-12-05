@@ -11,7 +11,7 @@ client = AsyncOpenAI(api_key=api_key)
 
 async def get_llm_text_stream(messages: Sequence, temperature: float = 0.7) -> AsyncGenerator:
     res = await client.chat.completions.create(
-        model="ft:gpt-3.5-turbo-0613:personal::8OQWuY8G",
+        model="ft:gpt-3.5-turbo-0613:personal::8SQObIRy",
         messages=messages,
         temperature=temperature,
         max_tokens=1000,
