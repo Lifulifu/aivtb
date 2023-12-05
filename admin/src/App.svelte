@@ -15,6 +15,7 @@
   let isLoading: boolean = false;
   let playbackDeviceId: number = -1;
   $: canPublishAiResponse = aiResponse?.length >= 2;
+  let edittingAiResponse: any = null;
 
   let videoId: string = '';
   type YtCommentItem = {name: string, message: string, time: string}
@@ -220,7 +221,7 @@
         <div class="flex items-end gap-2 w-full">
           <Label class="flex-grow">
             Temperature
-            <NumberInput bind:value={temperature} min={0.1} max={2.0} step={0.1}/>
+            <NumberInput bind:value={temperature} min={0.1} max={2.0} step={0.05}/>
           </Label>
           <Button type="submit" class="flex-grow" color="primary">Send</Button>
           <Button class="flex-grow" color="primary" on:click={onInputClearAndSend}>Clear & Send</Button>
@@ -243,16 +244,24 @@
         {:else if canPublishAiResponse}
           {#each aiResponse as res}
             <Card class="max-w-full" padding="md">
-              <div class="flex items-center">
+              <div class="flex gap-2 items-center">
                 <div class="flex-grow">
                   <p class="text-xs font-bold text-gray-400">{res.role}</p>
-                  <p>{res.content}</p>
-                </div>
-                <div class="flex gap-2">
-                  {#if res.role === 'assistant'}
-                    <Button class="p-2" on:click={() => regenerateAiResponse(res)}><Icon icon="material-symbols:refresh-rounded"/></Button>
+                  {#if res === edittingAiResponse}
+                    <Textarea class="mr-2 text-lg" bind:value={res.content}/>
+                  {:else}
+                    <p on:click={() => edittingAiResponse = res}>{res.content}</p>
                   {/if}
-                  <Button class="p-2" color="alternative" on:click={() => deleteAiResponse(res)}><Icon icon="material-symbols:close-small-rounded"/></Button>
+                </div>
+                <div class="flex">
+                  {#if res === edittingAiResponse}
+                    <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => edittingAiResponse = null}><Icon icon="material-symbols:close-small-rounded"/></button>
+                  {:else}
+                    {#if res.role === 'assistant'}
+                      <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => regenerateAiResponse(res)}><Icon icon="material-symbols:refresh-rounded"/></button>
+                    {/if}
+                    <button class="p-2 text-red-700 rounded-full hover:bg-gray-200" on:click={() => deleteAiResponse(res)}><Icon icon="mdi:trash-outline"/></button>
+                  {/if}
                 </div>
               </div>
             </Card>
