@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from typing import List
 
 from llm import get_llm_text_stream, to_chunks, construct_message, add_punctuation, remove_prefix, have_prefix
-from tts import get_tts_audio, play_speech
+from tts import get_openai_tts_audio, play_openai_speech, get_azure_tts_audio, play_azure_speech
 
 class UserMessageRequest(BaseModel):
     messages: List[dict[str, str]]
@@ -21,11 +21,11 @@ class UserMessageRequest(BaseModel):
 subtitle_queue = asyncio.Queue()
 
 async def tts_stage(req):
-    audio = await get_tts_audio(req['processed'])
+    audio = await get_azure_tts_audio(req['processed'])
     return { **req, 'audio': audio }
 
 async def play_stage(req):
-    await play_speech(req['audio'], req['device'])
+    await play_azure_speech(req['audio'], req['device'])
     await subtitle_queue.put(req['original']) # will be sent to subtitle_queue
 
 publish_worker = AsyncPipelineWorker([tts_stage, play_stage], debug=True, process_task_names=['tts', 'play'])

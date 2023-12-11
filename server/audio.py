@@ -2,6 +2,8 @@ import pyaudio
 import wave
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+from pydub import AudioSegment
+from io import BytesIO
 
 def list_devices():
     p = pyaudio.PyAudio()
@@ -42,6 +44,32 @@ async def play_wav(filename, device_index):
     stream.close()
     p.terminate()
 
+def play_audio_blocking(stream, audio_segment):
+    pcm_data = audio_segment.raw_data
+    buffer = BytesIO(pcm_data)
+    data = buffer.read(1024)
+
+    while data:
+        stream.write(data)
+        data = buffer.read(1024)
+
+async def play_mp3(filename, device_index):
+    audio_segment = AudioSegment.from_mp3(filename)
+    audio_segment = audio_segment.set_frame_rate(44100).set_channels(1).set_sample_width(2)
+
+    p = pyaudio.PyAudio()
+    stream = p.open(format=p.get_format_from_width(audio_segment.sample_width),
+                    channels=audio_segment.channels,
+                    rate=audio_segment.frame_rate,
+                    output=True,
+                    output_device_index=device_index)
+
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, play_audio_blocking, stream, audio_segment)
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
 
 if __name__ == "__main__":
     list_devices()
