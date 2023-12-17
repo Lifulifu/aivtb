@@ -34,7 +34,6 @@
   const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
   const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
   const subtitleUrl = 'ws://localhost:8000/stream_subtitle';
-  $: console.log(aiResponse)
 
   onMount(() => {
     connectAiResponse();
