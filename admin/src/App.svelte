@@ -14,7 +14,7 @@
   let aiResponseError: boolean = false;
   let isLoading: boolean = false;
   let playbackDeviceId: number = -1;
-  $: canPublishAiResponse = aiResponse?.length >= 2;
+  $: canPublishAiResponse = aiResponse?.length >= 1;
   let edittingAiResponse: any = null;
 
   let videoId: string = '';
@@ -34,6 +34,7 @@
   const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
   const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
   const subtitleUrl = 'ws://localhost:8000/stream_subtitle';
+  $: console.log(aiResponse)
 
   onMount(() => {
     connectAiResponse();
@@ -126,6 +127,12 @@
     }).catch(e => {
       console.error(e)
     })
+  }
+
+  function addEmptyAiResponse(role: 'assistant'|'user' = 'assistant') {
+    const message = {role, content: ''};
+    edittingAiResponse = message;
+    aiResponse = [...aiResponse, message];
   }
 
   async function onInputSubmit() {
@@ -235,18 +242,20 @@
             <Button color='alternative' on:click={() => aiResponseWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectAiResponse}>Connect</Button>
           </ButtonGroup>
-          <Button class="ml-auto" color="alternative" on:click={() => aiResponse = []}>Clear</Button>
+          <Button class="ml-auto" color="primary" on:click={() => addEmptyAiResponse('user')}>Add User</Button>
+          <Button color="primary" on:click={() => addEmptyAiResponse('assistant')}>Add Ai</Button>
+          <Button color="alternative" on:click={() => aiResponse = []}>Clear</Button>
         </div>
-        {#if isLoading || !aiResponse}
+        {#if isLoading}
           <div class="flex justify-center">
             <Spinner/>
           </div>
-        {:else if canPublishAiResponse}
+        {:else}
           {#each aiResponse as res}
             <Card class="max-w-full" padding="md">
               <div class="flex gap-2 items-center">
                 <div class="flex-grow">
-                  <p class="text-xs font-bold text-gray-400">{res.role}</p>
+                  <p on:click={() => edittingAiResponse = res} class="text-xs font-bold text-gray-400">{res.role}</p>
                   {#if res === edittingAiResponse}
                     <Textarea class="mr-2 text-lg" bind:value={res.content}/>
                   {:else}

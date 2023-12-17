@@ -11,7 +11,10 @@ from contextlib import asynccontextmanager
 from typing import List
 
 from llm import get_llm_text_stream, to_chunks, construct_message, add_punctuation, remove_prefix, have_prefix
-from tts import get_openai_tts_audio, play_openai_speech, get_azure_tts_audio, play_azure_speech
+from tts import get_azure_tts_audio, play_azure_speech
+
+text_chunk_min_len = 15
+subtitle_delay = 4
 
 class UserMessageRequest(BaseModel):
     messages: List[dict[str, str]]
@@ -25,8 +28,8 @@ async def tts_stage(req):
     return { **req, 'audio': audio }
 
 async def play_stage(req):
-    await play_azure_speech(req['audio'], req['device'])
     await subtitle_queue.put(req['original']) # will be sent to subtitle_queue
+    await play_azure_speech(req['audio'], req['device'])
 
 publish_worker = AsyncPipelineWorker([tts_stage, play_stage], debug=True, process_task_names=['tts', 'play'])
 publish_worker.start()
@@ -77,7 +80,7 @@ async def publish_ai_response(response: AiResponse):
 
     # speak question only if it is player message
     if not have_prefix(response.q):
-        chunks = to_chunks(remove_prefix(response.q), min_len=20)
+        chunks = to_chunks(remove_prefix(response.q), min_len=text_chunk_min_len)
         original.extend(chunks)
         processed.extend(
             list(map(lambda chunk: add_punctuation(chunk), chunks)))
@@ -130,6 +133,7 @@ async def stream_subtitle(websocket: WebSocket):
     async def task():
         result = await subtitle_queue.get()
         print('broadcast:', result)
+        await asyncio.sleep(subtitle_delay)
         await subtitle_manager.broadcast(result)
 
     await subtitle_manager.run_async_worker(websocket, task=task)

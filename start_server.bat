@@ -1,0 +1,1 @@
+start powershell -NoExit -Command "cd server; python -m uvicorn --port 8000 server:app"

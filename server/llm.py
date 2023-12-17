@@ -11,7 +11,7 @@ client = AsyncOpenAI(api_key=api_key)
 
 async def get_llm_text_stream(messages: Sequence, temperature: float = 0.7) -> AsyncGenerator:
     res = await client.chat.completions.create(
-        model="ft:gpt-3.5-turbo-0613:personal::8SQObIRy",
+        model="ft:gpt-3.5-turbo-0613:personal::8WiA7CJr",
         messages=messages,
         temperature=temperature,
         max_tokens=1000,
@@ -62,7 +62,6 @@ def add_punctuation(text: str):
 def construct_message(messages: List, prompt: object):
     return [
         {"role": "system", "content": prompt['system']},
-        {"role": "system", "content": prompt['character']},
         *messages
     ]
 

@@ -7,7 +7,7 @@
   const testSubtitle = "測試測試測試測試測試測試測試\n測試測試測試測試測試測試測試測試測試"
 
   let timer: number;
-  const SUBTITLE_TTL = 8000;
+  const SUBTITLE_TTL = 10000;
 
   onMount(async () => {
     await connectSubtitle();
