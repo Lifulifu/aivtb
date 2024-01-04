@@ -6,7 +6,6 @@ import asyncio
 import pytchat
 from worker import AsyncSequentialWorker, AsyncPipelineWorker
 from pydantic import BaseModel
-from azure.cognitiveservices.speech import AudioDataStream
 from contextlib import asynccontextmanager
 from typing import List
 
