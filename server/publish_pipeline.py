@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from textgen import to_chunks, add_punctuation, remove_prefix, have_prefix
 from audiogen import get_azure_tts_audio
-from play import play_wav
+from play import play_audio_data_stream
 from pipeline import Pipeline, PipelineStage
 from typing import Any
 
@@ -18,7 +18,8 @@ class TTSRequest(BaseModel):
     device: int = -1
 
 class PlayRequest(BaseModel):
-    audio: Any
+    text: str
+    audio: Any # actually AudioDataStream
     device: int = -1
 
 def preprocess_text_stage(req: PublishRequest) -> TTSRequest:
@@ -42,10 +43,10 @@ def preprocess_text_stage(req: PublishRequest) -> TTSRequest:
 
 def tts_stage(req: TTSRequest):
     audio = get_azure_tts_audio(req.processed)
-    return PlayRequest(audio=audio, device=req.device)
+    return PlayRequest(text=req.original, audio=audio, device=req.device)
 
 def play_stage(req: PlayRequest):
-    play_wav(req.audio, req.device)
+    play_audio_data_stream(req.audio, req.device)
 
 # input: PublishRequest
 # output: None, but play audio

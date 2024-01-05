@@ -12,7 +12,6 @@ class PipelineStage:
     pre_process_delay: float = 0
     post_process_delay: float = 0
 
-
 class Worker(threading.Thread):
     def __init__(self, stage: PipelineStage, in_queue: Queue, out_queue: Queue, event_manager: EventManager = None):
         super().__init__(daemon=True)
