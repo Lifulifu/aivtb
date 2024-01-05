@@ -1,5 +1,4 @@
-from openai import AsyncOpenAI
-from typing import AsyncGenerator, Sequence, Optional
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 from emoji import EMOJI_DATA
@@ -7,20 +6,20 @@ from typing import List
 
 load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
-client = AsyncOpenAI(api_key=api_key)
+client = OpenAI(api_key=api_key)
 
-async def get_llm_text_stream(messages: Sequence, temperature: float = 0.7) -> AsyncGenerator:
-    res = await client.chat.completions.create(
-        model="ft:gpt-3.5-turbo-0613:personal::8WiA7CJr",
+def get_llm_text_stream(messages: list[dict[str, str]], temperature: float = 0.7):
+    res = client.chat.completions.create(
+        model=os.getenv("OPENAI_MODEL_NAME"),
         messages=messages,
         temperature=temperature,
         max_tokens=1000,
         stream=True
     )
-    async for piece in res:
+    for piece in res:
         yield piece.choices[0].delta.content or ''
 
-def to_chunks(text: str, min_len: int = 0, separator: str | Sequence[str] = ('。', '，', '！', '～', '\n')):
+def to_chunks(text: str, min_len: int = 0, separator: str | list[str] = ('。', '，', '！', '～', '\n')):
     chunks = []
     chunk = ''
     for char in text:
@@ -33,7 +32,7 @@ def to_chunks(text: str, min_len: int = 0, separator: str | Sequence[str] = ('�
         chunks.append(chunk)
     return chunks
 
-def add_target_after_consecutive_group(inp: str, target: str, group: Sequence):
+def _add_target_after_consecutive_group(inp: str, target: str, group: list):
     if inp == '': return ''
     result = ''
     for i in range(len(inp)):
@@ -55,8 +54,9 @@ def have_prefix(text: str):
     return False
 
 def add_punctuation(text: str):
-    text = add_target_after_consecutive_group(text, '。', '～')
-    text = add_target_after_consecutive_group(text, '。', EMOJI_DATA)
+    # add punctuation after consecutive groups of certain characters
+    text = _add_target_after_consecutive_group(text, '。', '～')
+    text = _add_target_after_consecutive_group(text, '。', EMOJI_DATA)
     return text
 
 def construct_message(messages: List, prompt: object):
