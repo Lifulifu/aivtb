@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import types
 from queue import Queue
 import time
-from event import EventManager
+from utils.event import EventManager
 
 @dataclass
 class PipelineStage:

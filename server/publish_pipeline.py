@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from textgen import to_chunks, add_punctuation, remove_prefix, have_prefix
 from audiogen import get_azure_tts_audio
 from play import play_audio_data_stream
-from pipeline import Pipeline, PipelineStage
+from utils.pipeline import Pipeline, PipelineStage
 from typing import Any
 
 TEXT_CHUNK_MIN_LEN = 20

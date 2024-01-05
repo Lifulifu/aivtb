@@ -1,4 +1,4 @@
-from pipeline import Pipeline, PipelineStage
+from utils.pipeline import Pipeline, PipelineStage
 from textgen import get_llm_text_stream, construct_message
 import config
 from pydantic import BaseModel
