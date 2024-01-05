@@ -5,17 +5,17 @@
   import { scrollToBottom } from './lib/util';
   import Icon from '@iconify/svelte';
 
-  let userMessage: string = '';
-  let showUserMessageModal: boolean = false;
+  let userQuestion: string = '';
+  let showUserQuestionModal: boolean = false;
   let temperature: number = 0.7;
 
-  let aiResponse: {role: string, content: string}[] = [];
-  let aiResponseWs: WebSocket;
-  let aiResponseError: boolean = false;
+  let messagePreview: {role: string, content: string}[] = [];
+  let messagePreviewWs: WebSocket;
+  let messagePreviewError: boolean = false;
   let isLoading: boolean = false;
   let playbackDeviceId: number = -1;
-  $: canPublishAiResponse = aiResponse?.length >= 1;
-  let edittingAiResponse: any = null;
+  $: canPublishMessage = messagePreview?.length >= 1 && messagePreview[messagePreview.length - 1].role === 'assistant';
+  let edittingMessage: any = null;
 
   let videoId: string = '';
   type YtCommentItem = {name: string, message: string, time: string}
@@ -29,19 +29,19 @@
   let subtitleWs: WebSocket;
   let subtitleError: boolean = false;
 
-  const sendUserMessageUrl = 'http://localhost:8000/send_user_message';
-  const publishAiResponseUrl = 'http://localhost:8000/publish_ai_response';
-  const aiResponseUrl = 'ws://localhost:8000/stream_ai_response';
-  const ytCommentsUrl = 'ws://localhost:8000/stream_yt_comments';
-  const subtitleUrl = 'ws://localhost:8000/stream_subtitle';
+  const sendMessageUrl = 'http://localhost:8000/send_message';
+  const publishMessageUrl = 'http://localhost:8000/publish_message';
+  const previewMessageeUrl = 'ws://localhost:8000/preview_message';
+  const ytCommentsUrl = 'ws://localhost:8000/yt_comments';
+  const subtitleUrl = 'ws://localhost:8000/subtitle';
 
   onMount(() => {
-    connectAiResponse();
+    connectMessagePreview();
     connectSubtitle();
   })
 
   onDestroy(() => {
-    aiResponseWs.close();
+    messagePreviewWs.close();
     ytCommentsWs.close();
   })
 
@@ -52,22 +52,22 @@
     scrollToBottom(ytCommentsDom);
   }
 
-  async function connectAiResponse() {
-    if (aiResponseWs) aiResponseWs.close();
-    aiResponseWs = new WebSocket(aiResponseUrl);
-    aiResponseWs.onmessage = (e) => {
+  async function connectMessagePreview() {
+    if (messagePreviewWs) messagePreviewWs.close();
+    messagePreviewWs = new WebSocket(previewMessageeUrl);
+    messagePreviewWs.onmessage = (e) => {
       isLoading = false;
-      aiResponseError = false;
+      messagePreviewError = false;
       try {
         const data = JSON.parse(e.data)
-        if(data) aiResponse = data;
+        if(data) messagePreview = data;
       } catch (e) {
-        aiResponse = []
+        messagePreview = []
       }
     }
-    aiResponseWs.onerror = (e) => {
+    messagePreviewWs.onerror = (e) => {
       console.error(e)
-      aiResponseError = true;
+      messagePreviewError = true;
     }
   }
 
@@ -113,10 +113,10 @@
     }
   }
 
-  async function sendAiMessage(message: string = '') {
+  async function sendMessage(message: string = '') {
     isLoading = true;
-    const messages = message ? [...aiResponse, { role: "user", content: message }] : aiResponse;
-    await fetch(sendUserMessageUrl, {
+    const messages = message ? [...messagePreview, { role: "user", content: message }] : messagePreview;
+    await fetch(sendMessageUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -128,33 +128,32 @@
     })
   }
 
-  function addEmptyAiResponse(role: 'assistant'|'user' = 'assistant') {
+  function addEmptyMessage(role: 'assistant'|'user' = 'assistant') {
     const message = {role, content: ''};
-    edittingAiResponse = message;
-    aiResponse = [...aiResponse, message];
+    edittingMessage = message;
+    messagePreview = [...messagePreview, message];
   }
 
   async function onInputSubmit() {
-    await sendAiMessage(userMessage);
-    userMessage = ''
+    await sendMessage(userQuestion);
+    userQuestion = ''
   }
 
   async function onInputClearAndSend() {
-    aiResponse = [];
-    await sendAiMessage(userMessage);
-    userMessage = '';
+    messagePreview = [];
+    await sendMessage(userQuestion);
+    userQuestion = '';
   }
 
   async function onYtCommentClick(commentItem: YtCommentItem) {
-    userMessage = commentItem.message;
+    userQuestion = commentItem.message;
   }
 
-  async function publishAiResponse() {
-    if (!canPublishAiResponse) return;
-    const q = aiResponse[aiResponse.length - 2].content;
-    const a = aiResponse[aiResponse.length - 1].content;
-    // only read if it is a user question
-    await fetch(publishAiResponseUrl, {
+  async function publishMessage() {
+    if (!canPublishMessage) return;
+    const q = messagePreview[messagePreview.length - 2].content;
+    const a = messagePreview[messagePreview.length - 1].content;
+    await fetch(publishMessageUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ q, a, device: playbackDeviceId })
@@ -163,20 +162,22 @@
     })
   }
 
-  function deleteAiResponse(response: any) {
-    aiResponse = aiResponse.filter((r) => r !== response);
+  function deleteMessage(message: any) {
+    messagePreview = messagePreview.filter((r) => r !== message);
   }
 
-  function regenerateAiResponse(response: any) {
-    const _aiResponse = []
+  function regenerateMessage(message: any) {
+    const _messagePreview = []
     // delete all messages after response
-    for(let res of aiResponse) {
-      if (res === response) break;
-      _aiResponse.push(res);
+    for(let res of messagePreview) {
+      if (res === message) break;
+      _messagePreview.push(res);
     }
-    aiResponse = _aiResponse;
-    sendAiMessage();
+    messagePreview = _messagePreview;
+    sendMessage();
   }
+
+  $: console.log(messagePreview)
 </script>
 
 <main>
@@ -211,16 +212,16 @@
       <form class="space-y-2" on:submit|preventDefault={onInputSubmit}>
         <div class="flex gap-2">
           <Button color="alternative"
-            on:click={() => sendAiMessage('<instruction>自我介紹')}>自我介紹</Button>
+            on:click={() => sendMessage('<instruction>自我介紹')}>自我介紹</Button>
           <Button color="alternative"
-            on:click={() => sendAiMessage('<instruction>雜談')}>雜談</Button>
+            on:click={() => sendMessage('<instruction>雜談')}>雜談</Button>
           <Button color="alternative"
-            on:click={() => sendAiMessage('<instruction>繼續')}>繼續</Button>
+            on:click={() => sendMessage('<instruction>繼續')}>繼續</Button>
         </div>
 
         <div class="w-full flex gap-2">
-          <Input class="flex-grow" bind:value={userMessage}/>
-          <Button color="alternative" class="p-2" on:click={() => showUserMessageModal = true}>
+          <Input class="flex-grow" bind:value={userQuestion}/>
+          <Button color="alternative" class="p-2" on:click={() => showUserQuestionModal = true}>
             <Icon icon="mdi:magnify-scan" height={20}/>
           </Button>
         </div>
@@ -238,37 +239,37 @@
       <Card class="mt-8 max-w-full space-y-2 bg-gray-200" padding="md">
         <div class="flex gap-2">
           <ButtonGroup>
-            <Button color='alternative' on:click={() => aiResponseWs.close()}>Disconnect</Button>
-            <Button color='primary' on:click={connectAiResponse}>Connect</Button>
+            <Button color='alternative' on:click={() => messagePreviewWs.close()}>Disconnect</Button>
+            <Button color='primary' on:click={connectMessagePreview}>Connect</Button>
           </ButtonGroup>
-          <Button class="ml-auto" color="primary" on:click={() => addEmptyAiResponse('user')}>Add User</Button>
-          <Button color="primary" on:click={() => addEmptyAiResponse('assistant')}>Add Ai</Button>
-          <Button color="alternative" on:click={() => aiResponse = []}>Clear</Button>
+          <Button class="ml-auto" color="primary" on:click={() => addEmptyMessage('user')}>Add User</Button>
+          <Button color="primary" on:click={() => addEmptyMessage('assistant')}>Add Ai</Button>
+          <Button color="alternative" on:click={() => messagePreview = []}>Clear</Button>
         </div>
         {#if isLoading}
           <div class="flex justify-center">
             <Spinner/>
           </div>
         {:else}
-          {#each aiResponse as res}
+          {#each messagePreview as message}
             <Card class="max-w-full" padding="md">
               <div class="flex gap-2 items-center">
                 <div class="flex-grow">
-                  <p on:click={() => edittingAiResponse = res} class="text-xs font-bold text-gray-400">{res.role}</p>
-                  {#if res === edittingAiResponse}
-                    <Textarea class="mr-2 text-lg" bind:value={res.content}/>
+                  <p on:click={() => edittingMessage = message} class="text-xs font-bold text-gray-400">{message.role}</p>
+                  {#if message === edittingMessage}
+                    <Textarea class="mr-2 text-lg" bind:value={message.content}/>
                   {:else}
-                    <p on:click={() => edittingAiResponse = res}>{res.content}</p>
+                    <p on:click={() => edittingMessage = message}>{message.content}</p>
                   {/if}
                 </div>
                 <div class="flex">
-                  {#if res === edittingAiResponse}
-                    <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => edittingAiResponse = null}><Icon icon="material-symbols:close-small-rounded"/></button>
+                  {#if message === edittingMessage}
+                    <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => edittingMessage = null}><Icon icon="material-symbols:close-small-rounded"/></button>
                   {:else}
-                    {#if res.role === 'assistant'}
-                      <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => regenerateAiResponse(res)}><Icon icon="material-symbols:refresh-rounded"/></button>
+                    {#if message.role === 'assistant'}
+                      <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => regenerateMessage(message)}><Icon icon="material-symbols:refresh-rounded"/></button>
                     {/if}
-                    <button class="p-2 text-red-700 rounded-full hover:bg-gray-200" on:click={() => deleteAiResponse(res)}><Icon icon="mdi:trash-outline"/></button>
+                    <button class="p-2 text-red-700 rounded-full hover:bg-gray-200" on:click={() => deleteMessage(message)}><Icon icon="mdi:trash-outline"/></button>
                   {/if}
                 </div>
               </div>
@@ -280,7 +281,7 @@
             Playback device
             <NumberInput class='ml-auto' bind:value={playbackDeviceId}/>
           </Label>
-          <Button color='primary' class="flex-grow" on:click={publishAiResponse} disabled={!canPublishAiResponse}>Publish</Button>
+          <Button color='primary' class="flex-grow" on:click={publishMessage} disabled={!canPublishMessage}>Publish</Button>
         </div>
       </Card>
 
@@ -299,12 +300,12 @@
   </div>
 </main>
 
-<Modal bind:open={showUserMessageModal}>
+<Modal bind:open={showUserQuestionModal}>
   <h1>Message</h1>
-  <Textarea bind:value={userMessage}/>
+  <Textarea bind:value={userQuestion}/>
 </Modal>
 
-{#if aiResponseError}
+{#if messagePreviewError}
   <Toast color="red" position="bottom-right" transition={fade}>
     <Icon slot="icon" icon="zondicons:close-outline"/>
     Cannot connect to AI response stream.
