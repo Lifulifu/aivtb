@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from wsmanager import WebSocketManager
-from aivtb_pipelines import textgen_pipeline
+from textgen_pipeline import textgen_pipeline
 
 router = APIRouter()
 

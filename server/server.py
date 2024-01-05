@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from routers import send_message, preview_message
+from routers import send_message, preview_message, publish_message
 
 app = FastAPI()
 origins = ["*"]
@@ -15,6 +15,7 @@ app.add_middleware(
 
 app.include_router(send_message.router)
 app.include_router(preview_message.router)
+app.include_router(publish_message.router)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

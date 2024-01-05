@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from aivtb_pipelines import textgen_pipeline, TextgenRequest
+from textgen_pipeline import textgen_pipeline, TextgenRequest
 
 router = APIRouter()
 

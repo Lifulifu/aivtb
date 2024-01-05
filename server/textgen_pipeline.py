@@ -3,6 +3,7 @@ from textgen import get_llm_text_stream, construct_message
 import config
 from pydantic import BaseModel
 
+
 class TextgenRequest(BaseModel):
     messages: list[dict[str, str]]
     temperature: float
@@ -22,3 +23,4 @@ textgen_pipeline = Pipeline([
     PipelineStage(run=textgen_stage),
 ])
 textgen_pipeline.start()
+
