@@ -3,18 +3,23 @@ from textgen import to_chunks, add_punctuation, remove_prefix, have_prefix
 from audiogen import get_azure_tts_audio
 from play import play_audio_data_stream
 from utils.pipeline import Pipeline, PipelineStage
-from typing import Any
+from typing import Any, Optional
+import config
 
 TEXT_CHUNK_MIN_LEN = 20
 
 class PublishRequest(BaseModel):
     q: str
+    q_voice: Optional[str] = config.voice['q']['voiceName']
+    q_device: Optional[int] = config.voice['q']['device']
     a: str
-    device: int = -1
+    a_voice: Optional[str] = config.voice['a']['voiceName']
+    a_device: Optional[int] = config.voice['a']['device']
 
 class TTSRequest(BaseModel):
     original: str
     processed: str
+    voice: str
     device: int = -1
 
 class PlayRequest(BaseModel):
@@ -23,26 +28,22 @@ class PlayRequest(BaseModel):
     device: int = -1
 
 def preprocess_text_stage(req: PublishRequest) -> TTSRequest:
-    original = []
-    processed = []
+    # q
+    # speak only if it is player message, not a system message with prefix.
+    if len(req.q) > 0 and not have_prefix(req.q):
+        original = to_chunks(remove_prefix(req.q), min_len=TEXT_CHUNK_MIN_LEN)
+        processed = list(map(lambda chunk: add_punctuation(chunk), original))
+        for ori_chunk, proc_chunk in zip(original, processed):
+            yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.q_device, voice=req.q_voice)
 
-    # speak question only if it is player message
-    if not have_prefix(req.q):
-        chunks = to_chunks(remove_prefix(req.q), min_len=TEXT_CHUNK_MIN_LEN)
-        original.extend(chunks)
-        processed.extend(
-            list(map(lambda chunk: add_punctuation(chunk), chunks)))
-
-    chunks = to_chunks(req.a, min_len=TEXT_CHUNK_MIN_LEN)
-    original.extend(chunks)
-    processed.extend(
-        list(map(lambda chunk: add_punctuation(chunk), chunks)))
-
+    # a
+    original = to_chunks(req.a, min_len=TEXT_CHUNK_MIN_LEN)
+    processed = list(map(lambda chunk: add_punctuation(chunk), original))
     for ori_chunk, proc_chunk in zip(original, processed):
-        yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.device)
+        yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.a_device, voice=req.a_voice)
 
 def tts_stage(req: TTSRequest):
-    audio = get_azure_tts_audio(req.processed)
+    audio = get_azure_tts_audio(req.processed, req.voice)
     return PlayRequest(text=req.original, audio=audio, device=req.device)
 
 def play_stage(req: PlayRequest):

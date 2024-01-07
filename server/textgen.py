@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from emoji import EMOJI_DATA
 from typing import List
+import config
 
 load_dotenv()
 api_key = os.getenv("OPENAI_KEY")
@@ -10,7 +11,7 @@ client = OpenAI(api_key=api_key)
 
 def get_llm_text_stream(messages: list[dict[str, str]], temperature: float = 0.7):
     res = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL_NAME"),
+        model=config.model_name,
         messages=messages,
         temperature=temperature,
         max_tokens=1000,
