@@ -181,7 +181,7 @@
 </script>
 
 <main>
-  <div class="container w-full mt-8 space-y-4 lg:grid grid-cols-2 items-start gap-4">
+  <div class="container w-full mt-8 lg:grid grid-cols-2 items-start gap-4">
     <!-- yt comments -->
     <Card class="max-w-full space-y-2" padding="none">
       <div class="w-full flex flex-col items-center gap-2 p-4">
@@ -207,7 +207,7 @@
       </ol>
     </Card>
 
-    <div class="">
+    <div class="mt-0">
     <!-- user message input -->
       <form class="space-y-2" on:submit|preventDefault={onInputSubmit}>
         <div class="flex gap-2">

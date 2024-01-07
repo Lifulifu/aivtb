@@ -14,7 +14,7 @@ async def on_tts_end(inp, out: PlayRequest):
     await manager.broadcast(out.text)
 publish_pipeline.events.subscribe('tts_stage:end', on_tts_end)
 
-@router.websocket_route('/subtitle')
+@router.websocket('/subtitle')
 async def subtitle(websocket: WebSocket):
     await manager.connect(websocket)
     try:
