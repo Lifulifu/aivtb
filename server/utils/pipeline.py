@@ -69,7 +69,7 @@ class Pipeline():
                 next_queue = self.out_queue
             else:
                 next_queue = Queue()
-            worker = Worker(stage, queue, next_queue, event_manager=self.event_manager, thread_event=self._thread_event)
+            worker = Worker(stage, queue, next_queue, event_manager=self.event_manager)
             self.workers.append(worker)
             queue = next_queue
 
