@@ -8,12 +8,12 @@ voice = {
     "a": {
       "name": "rainshower",
       "voiceName": "zh-TW-HsiaoChenNeural",
-      "device": 1
+      "device": 10
     },
     "q": {
       "name": "user",
-      "voiceName": "zh-TW-YunJheNeural",
-      "device": 1
+      "voiceName": "zh-TW-HsiaoChenNeural",
+      "device": 10
     }
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  const subtitleUrl = 'ws://localhost:8000/stream_subtitle';
+  const subtitleUrl = 'ws://localhost:8000/subtitle';
   let subtitle: string[] = [];
   let subtitleWs: WebSocket;
   const testSubtitle = "測試測試測試測試測試測試測試\n測試測試測試測試測試測試測試測試測試"

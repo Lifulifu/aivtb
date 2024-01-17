@@ -2,6 +2,7 @@ import pyaudio
 from azure.cognitiveservices.speech import AudioDataStream
 import wave
 import tempfile
+import os
 
 def list_devices():
     p = pyaudio.PyAudio()
@@ -19,11 +20,11 @@ def get_device_name(id: int):
     return None
 
 def play_audio_data_stream(stream: AudioDataStream, device_index):
-    temp_file = tempfile.NamedTemporaryFile(delete=True)
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
     stream.save_to_wav_file(temp_file.name)
 
     # Open the temporary file as a .wav file
-    wf = wave.open(temp_file.name, 'rb')
+    wf = wave.open(temp_file, 'rb')
     p = pyaudio.PyAudio()
     pyaudio_stream = p.open(
         format=p.get_format_from_width(wf.getsampwidth()),
@@ -37,6 +38,9 @@ def play_audio_data_stream(stream: AudioDataStream, device_index):
     while data:
         pyaudio_stream.write(data)
         data = wf.readframes(1024)
+
+    temp_file.close()
+    os.remove(temp_file.name)
 
     pyaudio_stream.stop_stream()
     pyaudio_stream.close()

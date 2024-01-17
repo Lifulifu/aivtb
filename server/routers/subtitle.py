@@ -3,7 +3,7 @@ from wsmanager import WebSocketManager
 from publish_pipeline import publish_pipeline, PlayRequest
 import asyncio
 
-SUBTITLE_DELAY = 3
+SUBTITLE_DELAY = 5
 
 router = APIRouter()
 

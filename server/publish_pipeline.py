@@ -5,6 +5,7 @@ from play import play_audio_data_stream
 from utils.pipeline import Pipeline, PipelineStage
 from typing import Any, Optional
 import config
+from utils.util import Timer
 
 TEXT_CHUNK_MIN_LEN = 20
 
@@ -47,7 +48,8 @@ def tts_stage(req: TTSRequest):
     return PlayRequest(text=req.original, audio=audio, device=req.device)
 
 def play_stage(req: PlayRequest):
-    play_audio_data_stream(req.audio, req.device)
+    with Timer('play'):
+        play_audio_data_stream(req.audio, req.device)
 
 # input: PublishRequest
 # output: None, but play audio

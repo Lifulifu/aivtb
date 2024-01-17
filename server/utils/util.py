@@ -11,6 +11,6 @@ class Timer:
         print(f'[{self.name}] start')
         self.start = time.perf_counter()
 
-    def __exit__(self):
+    def __exit__(self, type, value, traceback):
         self.end = time.perf_counter()
-        print(f'[{self.name}] end, elapsed time: {self.end - self.start:.2f}s')
+        print(f'[{self.name}] end, elapsed time: {self.end - self.start:.4f}s')
