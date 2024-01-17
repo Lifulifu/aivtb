@@ -12,7 +12,7 @@ manager = WebSocketManager()
 async def on_tts_end(inp, out: PlayRequest):
     await asyncio.sleep(SUBTITLE_DELAY)
     await manager.broadcast(out.text)
-publish_pipeline.events.subscribe('tts_stage:end', on_tts_end)
+publish_pipeline.event_manager.subscribe('tts_stage:end', on_tts_end)
 
 @router.websocket('/subtitle')
 async def subtitle(websocket: WebSocket):

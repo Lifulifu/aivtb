@@ -6,3 +6,7 @@ router = APIRouter()
 @router.post('/publish_message')
 def publish_message(req: PublishRequest):
     publish_pipeline.submit(req)
+
+@router.get('/publish_abort')
+def publish_abort():
+    publish_pipeline.abort()
