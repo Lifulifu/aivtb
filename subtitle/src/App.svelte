@@ -8,6 +8,7 @@
 
   let timer: number;
   const SUBTITLE_TTL = 10000;
+  const SUBTITLE_DELAY = 4000;
 
   onMount(async () => {
     await connectSubtitle();
@@ -21,14 +22,16 @@
         const data = JSON.parse(e.data)
         if(data) {
           console.log(data)
-          subtitle = data;
+          setTimeout(() => {
+            subtitle = data;
+            clearTimeout(timer);
+            timer = setTimeout(() => (subtitle = []), SUBTITLE_TTL);
+          }, SUBTITLE_DELAY)
         }
       } catch (e) {
         console.log(e)
       }
 
-      clearTimeout(timer);
-      timer = setTimeout(() => (subtitle = []), SUBTITLE_TTL);
     }
     subtitleWs.onerror = (e) => {
       console.error(e)
@@ -56,7 +59,7 @@
     --text-border-color: #000000;
     --text-border-width: 2px;
 
-    color: rgb(236, 247, 141);
+    color: rgb(243, 221, 109);
     font-size: 4rem;
     font-weight: 800;
     padding: 0 10% 0;

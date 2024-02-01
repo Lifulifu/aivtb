@@ -20,7 +20,7 @@ def get_llm_text_stream(messages: list[dict[str, str]], temperature: float = 0.7
     for piece in res:
         yield piece.choices[0].delta.content or ''
 
-def to_chunks(text: str, min_len: int = 0, separator: str | list[str] = ('。', '，', '！', '～', '\n')):
+def to_chunks(text: str, min_len: int = 0, separator: str | list[str] = ('。', '！', '～', '\n')):
     chunks = []
     chunk = ''
     for char in text:

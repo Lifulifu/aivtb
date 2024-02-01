@@ -1,18 +1,14 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from wsmanager import WebSocketManager
 from publish_pipeline import publish_pipeline, PlayRequest
-import asyncio
-
-SUBTITLE_DELAY = 5
 
 router = APIRouter()
 
 manager = WebSocketManager()
 # send subtitle after TTS ends instead of at play start because sleep() blocks the thread, and blocking should be minimized in play stage.
-async def on_tts_end(inp, out: PlayRequest):
-    await asyncio.sleep(SUBTITLE_DELAY)
-    await manager.broadcast(out.text)
-publish_pipeline.event_manager.subscribe('tts_stage:end', on_tts_end)
+async def on_play_start(inp: PlayRequest):
+    await manager.broadcast(inp.text)
+publish_pipeline.event_manager.subscribe('play_stage:start', on_play_start)
 
 @router.websocket('/subtitle')
 async def subtitle(websocket: WebSocket):

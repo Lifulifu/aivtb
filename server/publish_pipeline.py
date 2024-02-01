@@ -29,22 +29,27 @@ class PlayRequest(BaseModel):
     device: int = -1
 
 def preprocess_text_stage(req: PublishRequest) -> TTSRequest:
+
+    def preprocess_chunk(chunk: str):
+        return add_punctuation(chunk)
+
     # q
     # speak only if it is player message, not a system message with prefix.
     if len(req.q) > 0 and not have_prefix(req.q):
         original = to_chunks(remove_prefix(req.q), min_len=TEXT_CHUNK_MIN_LEN)
-        processed = list(map(lambda chunk: add_punctuation(chunk), original))
+        processed = list(map(preprocess_chunk, original))
         for ori_chunk, proc_chunk in zip(original, processed):
             yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.q_device, voice=req.q_voice)
 
     # a
     original = to_chunks(req.a, min_len=TEXT_CHUNK_MIN_LEN)
-    processed = list(map(lambda chunk: add_punctuation(chunk), original))
+    processed = list(map(preprocess_chunk, original))
     for ori_chunk, proc_chunk in zip(original, processed):
         yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.a_device, voice=req.a_voice)
 
 def tts_stage(req: TTSRequest):
-    audio = get_azure_tts_audio(req.processed, req.voice)
+    with Timer('fetch'):
+        audio = get_azure_tts_audio(req.processed, req.voice, rate=1.1)
     return PlayRequest(text=req.original, audio=audio, device=req.device)
 
 def play_stage(req: PlayRequest):
