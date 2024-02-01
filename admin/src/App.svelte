@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Dropdown, DropdownItem, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Toggle } from 'flowbite-svelte'
+  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Toggle } from 'flowbite-svelte'
   import { onDestroy, onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { scrollToBottom } from './lib/util';
