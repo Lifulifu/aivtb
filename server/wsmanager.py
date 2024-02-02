@@ -10,11 +10,19 @@ class WebSocketManager:
         print('connected', len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        try:
+            self.active_connections.remove(websocket)
+        except:
+            pass
+        print('connected', len(self.active_connections))
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         await websocket.send_text(message)
 
     async def broadcast(self, data: object):
         for connection in self.active_connections:
-            await connection.send_json(data)
+            try:
+                await connection.send_json(data)
+            except:
+                print('Auto disconnecting.')
+                self.disconnect(connection)

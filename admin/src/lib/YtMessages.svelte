@@ -9,21 +9,23 @@
   let ytCommentsWs: WebSocket;
   let ytCommentsDom: any = null;
   let autoScroll: boolean = true;
+  let pingInterval: any;
 
   const ytCommentsUrl = 'ws://localhost:8000/yt_comments';
   const dispatch = createEventDispatcher();
 
   onDestroy(() => {
-    if (ytCommentsWs) {
-      ytCommentsWs.close();
-    }
+    ytCommentsWs?.close();
+    clearInterval(pingInterval);
   })
 
   $: if (ytCommentsDom && autoScroll && ytComments) autoScrollYtComments()
 
   async function connectYtComments() {
     if (!videoId) return;
-    if (ytCommentsWs) ytCommentsWs.close();
+    ytCommentsWs?.close();
+    clearInterval(pingInterval);
+
     ytCommentsWs = new WebSocket(`${ytCommentsUrl}/${videoId}`);
     ytCommentsWs.onmessage = (e) => {
       try {
@@ -39,6 +41,17 @@
     ytCommentsWs.onerror = (e) => {
       console.error(e)
     }
+
+    pingInterval = setInterval(() => {
+      if (ytCommentsWs.readyState === 1) {
+        ytCommentsWs.send('ping');
+      }
+    }, 1000)
+  }
+
+  function disconnectYtComments() {
+    ytCommentsWs?.close();
+    clearInterval(pingInterval);
   }
 
   async function autoScrollYtComments() {
@@ -57,7 +70,7 @@
     <Input bind:value={videoId}/>
     <div class="w-full flex gap-2 items-center">
       <ButtonGroup>
-        <Button color='alternative' on:click={() => ytCommentsWs.close()}>Disconnect</Button>
+        <Button color='alternative' on:click={disconnectYtComments}>Disconnect</Button>
         <Button color='primary' on:click={connectYtComments}>Connect</Button>
       </ButtonGroup>
       <Label class='ml-auto'>auto scroll</Label>

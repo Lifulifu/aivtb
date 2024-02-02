@@ -42,11 +42,12 @@
   })
 
   onDestroy(() => {
-    messagePreviewWs.close();
+    messagePreviewWs?.close();
+    subtitleWs?.close();
   })
 
   async function connectMessagePreview() {
-    if (messagePreviewWs) messagePreviewWs.close();
+    messagePreviewWs?.close();
     messagePreviewWs = new WebSocket(previewMessageeUrl);
     messagePreviewWs.onmessage = (e) => {
       isLoading = false;
@@ -84,9 +85,9 @@
     }
   }
 
-  async function sendMessage(message: string = '') {
+  async function sendMessage(message: string | null = null) {
     isLoading = true;
-    const messages = message ? [...messagePreview, { role: "user", content: message }] : messagePreview;
+    const messages = message === null ? messagePreview : [...messagePreview, { role: "user", content: message }];
     await fetch(sendMessageUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
@@ -94,8 +95,12 @@
         messages: messages,
         temperature: temperature
       })
+    }).then(res => {
+      if (!res.ok)
+        throw new Error('Failed to send message');
     }).catch(e => {
-      console.error(e)
+      console.error(e, messages)
+      isLoading = false;
     })
   }
 
@@ -124,6 +129,9 @@
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ q, a, q_device: audioDevice.id, a_device: audioDevice.id })
+    }).then(res => {
+      if (!res.ok)
+        throw new Error('Failed to publish message');
     }).catch(e => {
       console.error(e)
     })
@@ -233,6 +241,8 @@
                   {:else}
                     {#if message.role === 'assistant'}
                       <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => regenerateMessage(message)}><Icon icon="material-symbols:refresh-rounded"/></button>
+                    {:else}
+                      <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => sendMessage()}><Icon icon="material-symbols:arrow-forward"/></button>
                     {/if}
                     <button class="p-2 text-red-700 rounded-full hover:bg-gray-200" on:click={() => deleteMessage(message)}><Icon icon="mdi:trash-outline"/></button>
                   {/if}

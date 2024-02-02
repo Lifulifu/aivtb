@@ -5,4 +5,5 @@ router = APIRouter()
 
 @router.post('/send_message')
 def send_message(req: TextgenRequest):
+    print(req)
     textgen_pipeline.submit(req)
