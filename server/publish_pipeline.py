@@ -13,15 +13,18 @@ class PublishRequest(BaseModel):
     q: str
     q_voice: Optional[str] = config.voice['q']['voiceName']
     q_device: Optional[int] = config.voice['q']['device']
+    q_rate: float = config.voice['q']['rate']
     a: str
     a_voice: Optional[str] = config.voice['a']['voiceName']
     a_device: Optional[int] = config.voice['a']['device']
+    a_rate: float = config.voice['a']['rate']
 
 class TTSRequest(BaseModel):
     original: str
     processed: str
     voice: str
     device: int = -1
+    rate: float = 1.0
 
 class PlayRequest(BaseModel):
     text: str
@@ -39,17 +42,18 @@ def preprocess_text_stage(req: PublishRequest) -> TTSRequest:
         original = to_chunks(remove_prefix(req.q), min_len=TEXT_CHUNK_MIN_LEN)
         processed = list(map(preprocess_chunk, original))
         for ori_chunk, proc_chunk in zip(original, processed):
-            yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.q_device, voice=req.q_voice)
+            yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.q_device, voice=req.q_voice, rate=req.q_rate)
 
     # a
-    original = to_chunks(req.a, min_len=TEXT_CHUNK_MIN_LEN)
-    processed = list(map(preprocess_chunk, original))
-    for ori_chunk, proc_chunk in zip(original, processed):
-        yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.a_device, voice=req.a_voice)
+    if len(req.a) > 0:
+        original = to_chunks(req.a, min_len=TEXT_CHUNK_MIN_LEN)
+        processed = list(map(preprocess_chunk, original))
+        for ori_chunk, proc_chunk in zip(original, processed):
+            yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.a_device, voice=req.a_voice, rate=req.a_rate)
 
 def tts_stage(req: TTSRequest):
     with Timer('fetch'):
-        audio = get_azure_tts_audio(req.processed, req.voice, rate=1.1)
+        audio = get_azure_tts_audio(req.processed, req.voice, rate=req.rate)
     return PlayRequest(text=req.original, audio=audio, device=req.device)
 
 def play_stage(req: PlayRequest):

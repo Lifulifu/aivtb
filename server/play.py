@@ -4,14 +4,19 @@ import wave
 import tempfile
 import os
 
-def list_devices():
+def get_devices():
     p = pyaudio.PyAudio()
     info = p.get_host_api_info_by_index(0)
     numdevices = info.get('deviceCount')
+    result = []
     for i in range(0, numdevices):
         if (p.get_device_info_by_host_api_device_index(0, i).get('maxOutputChannels')) > 0:
-            print(i, " - ", p.get_device_info_by_host_api_device_index(0, i).get('name'))
+            result.append({
+                'id': i,
+                'name': p.get_device_info_by_host_api_device_index(0, i).get('name')
+            })
     p.terminate()
+    return result
 
 def get_device_name(id: int):
     p = pyaudio.PyAudio()
@@ -19,7 +24,7 @@ def get_device_name(id: int):
         return p.get_device_info_by_host_api_device_index(0, id).get('name')
     return None
 
-def play_audio_data_stream(stream: AudioDataStream, device_index):
+def play_audio_data_stream(stream: AudioDataStream, device_index: int):
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     stream.save_to_wav_file(temp_file.name)
 
@@ -48,4 +53,4 @@ def play_audio_data_stream(stream: AudioDataStream, device_index):
 
 
 if __name__ == "__main__":
-    list_devices()
+    print(get_devices())
