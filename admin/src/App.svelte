@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Toggle } from 'flowbite-svelte'
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Select } from 'flowbite-svelte'
+  import { Tabs, TabList, TabBody, TabHeader } from './lib/tabs/tabs';
+  import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { scrollToBottom } from './lib/util';
   import Icon from '@iconify/svelte';
+
+  import YtMessages from './lib/YtMessages.svelte';
+  import type { YtCommentItem } from './lib/types';
+  import ScriptedMessages from './lib/ScriptedMessages.svelte';
 
   let userQuestion: string = '';
   let showUserQuestionModal: boolean = false;
@@ -13,44 +17,33 @@
   let messagePreviewWs: WebSocket;
   let messagePreviewError: boolean = false;
   let isLoading: boolean = false;
-  let playbackDeviceId: number = -1;
   $: canPublishMessage = messagePreview?.length >= 1 && messagePreview[messagePreview.length - 1].role === 'assistant';
   let edittingMessage: any = null;
-
-  let videoId: string = '';
-  type YtCommentItem = {name: string, message: string, time: string}
-  let ytComments: YtCommentItem[] = [];
-  let ytCommentsWs: WebSocket;
-  let ytCommentsDom: any = null;
-  let ytCommentsError: boolean = false;
-  let autoScroll: boolean = true;
+  let audioDevices: {id: number, name: string}[] = [];
+  let audioDevice: {id: number, name: string} = {id: -1, name: '<No device>'};
 
   let subtitle: string = '';
   let subtitleWs: WebSocket;
   let subtitleError: boolean = false;
 
-  const sendMessageUrl = 'http://localhost:8000/send_message';
-  const publishMessageUrl = 'http://localhost:8000/publish_message';
-  const previewMessageeUrl = 'ws://localhost:8000/preview_message';
-  const ytCommentsUrl = 'ws://localhost:8000/yt_comments';
-  const subtitleUrl = 'ws://localhost:8000/subtitle';
+  const SERVER_URL = 'localhost:8000';
+  const sendMessageUrl = `http://${SERVER_URL}/send_message`;
+  const publishMessageUrl = `http://${SERVER_URL}/publish_message`;
+  const previewMessageeUrl = `ws://${SERVER_URL}/preview_message`;
+  const subtitleUrl = `ws://${SERVER_URL}/subtitle`;
 
-  onMount(() => {
+  onMount(async () => {
     connectMessagePreview();
     connectSubtitle();
+
+    // Get audio devices
+    let res = await fetch(`http://${SERVER_URL}/audio_devices`);
+    audioDevices = await res.json();
   })
 
   onDestroy(() => {
     messagePreviewWs.close();
-    ytCommentsWs.close();
   })
-
-  $: if (ytCommentsDom && autoScroll && ytComments) autoScrollYtComments()
-
-  async function autoScrollYtComments() {
-    await tick();
-    scrollToBottom(ytCommentsDom);
-  }
 
   async function connectMessagePreview() {
     if (messagePreviewWs) messagePreviewWs.close();
@@ -68,28 +61,6 @@
     messagePreviewWs.onerror = (e) => {
       console.error(e)
       messagePreviewError = true;
-    }
-  }
-
-  async function connectYtComments() {
-    if (!videoId) return;
-    if (ytCommentsWs) ytCommentsWs.close();
-    ytCommentsWs = new WebSocket(`${ytCommentsUrl}/${videoId}`);
-    ytCommentsWs.onmessage = (e) => {
-      ytCommentsError = false;
-      try {
-        const data = JSON.parse(e.data)
-        if(data) {
-          ytComments.push(data);
-          ytComments = ytComments;
-        }
-      } catch (e) {
-        console.log(e)
-      }
-    }
-    ytCommentsWs.onerror = (e) => {
-      console.error(e)
-      ytCommentsError = true;
     }
   }
 
@@ -145,18 +116,14 @@
     userQuestion = '';
   }
 
-  async function onYtCommentClick(commentItem: YtCommentItem) {
-    userQuestion = commentItem.message;
-  }
-
   async function publishMessage() {
     if (!canPublishMessage) return;
-    const q = messagePreview[messagePreview.length - 2].content;
-    const a = messagePreview[messagePreview.length - 1].content;
+    const q = messagePreview[messagePreview.length - 2]?.content ?? '';
+    const a = messagePreview[messagePreview.length - 1]?.content ?? '';
     await fetch(publishMessageUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q, a, device: playbackDeviceId })
+      body: JSON.stringify({ q, a, q_device: audioDevice.id, a_device: audioDevice.id })
     }).catch(e => {
       console.error(e)
     })
@@ -177,35 +144,33 @@
     sendMessage();
   }
 
-  $: console.log(messagePreview)
+  function onYtMessageSubmit(e: CustomEvent<YtCommentItem>) {
+    messagePreview = [...messagePreview, { role: "user", content: e.detail.message}];
+  }
+
+  function onScriptedMessageSubmit(e: CustomEvent<{role: string, content: string}[]>) {
+    messagePreview = e.detail;
+  }
 </script>
 
 <main>
   <div class="container w-full mt-8 lg:grid grid-cols-2 items-start gap-4">
-    <!-- yt comments -->
-    <Card class="max-w-full space-y-2" padding="none">
-      <div class="w-full flex flex-col items-center gap-2 p-4">
-        <Input bind:value={videoId}/>
-        <div class="w-full flex gap-2 items-center">
-          <ButtonGroup>
-            <Button color='alternative' on:click={() => ytCommentsWs.close()}>Disconnect</Button>
-            <Button color='primary' on:click={connectYtComments}>Connect</Button>
-          </ButtonGroup>
-          <Label class='ml-auto'>auto scroll</Label>
-          <Toggle bind:checked={autoScroll}/>
-          <Button color='alternative' on:click={() => ytComments = []}>Clear</Button>
-        </div>
-      </div>
-      <ol class="max-h-[40ch] overflow-y-auto" bind:this={ytCommentsDom}>
-        {#each ytComments as item}
-          <li class="cursor-pointer py-2 px-4 border-b max-w-full hover:bg-primary-600/30 break-words"
-          on:click={() => onYtCommentClick(item)}>
-            <p class="text-xs font-bold text-gray-400">{item.name}</p>
-            <p>{item.message}</p>
-          </li>
-        {/each}
-      </ol>
-    </Card>
+    <div class="mb-8">
+      <Tabs>
+        <TabList>
+          <TabHeader>YouTube</TabHeader>
+          <TabHeader>Scripted</TabHeader>
+        </TabList>
+
+        <TabBody>
+          <YtMessages on:submit={onYtMessageSubmit}/>
+        </TabBody>
+
+        <TabBody>
+          <ScriptedMessages on:submit={onScriptedMessageSubmit}/>
+        </TabBody>
+      </Tabs>
+    </div>
 
     <div class="mt-0">
     <!-- user message input -->
@@ -257,7 +222,7 @@
                 <div class="flex-grow">
                   <p on:click={() => edittingMessage = message} class="text-xs font-bold text-gray-400">{message.role}</p>
                   {#if message === edittingMessage}
-                    <Textarea class="mr-2 text-lg" bind:value={message.content}/>
+                    <Textarea unWrappedClass="text-base" bind:value={message.content}/>
                   {:else}
                     <p on:click={() => edittingMessage = message}>{message.content}</p>
                   {/if}
@@ -279,7 +244,11 @@
         <div class="flex items-end gap-2">
           <Label class="flex-grow">
             Playback device
-            <NumberInput class='ml-auto' bind:value={playbackDeviceId}/>
+            <Select bind:value={audioDevice}>
+              {#each audioDevices as device}
+                <option value={device}>{device.name}</option>
+              {/each}
+            </Select>
           </Label>
           <Button color='primary' class="flex-grow" on:click={publishMessage} disabled={!canPublishMessage}>Publish</Button>
         </div>
@@ -300,6 +269,7 @@
   </div>
 </main>
 
+<!-- Expanded message edittor -->
 <Modal bind:open={showUserQuestionModal}>
   <h1>Message</h1>
   <Textarea bind:value={userQuestion}/>
@@ -309,12 +279,5 @@
   <Toast color="red" position="bottom-right" transition={fade}>
     <Icon slot="icon" icon="zondicons:close-outline"/>
     Cannot connect to AI response stream.
-  </Toast>
-{/if}
-
-{#if ytCommentsError}
-  <Toast color="red" position="bottom-right" transition={fade}>
-    <Icon slot="icon" icon="zondicons:close-outline"/>
-    Cannot connect to YouTube comments stream.
   </Toast>
 {/if}
