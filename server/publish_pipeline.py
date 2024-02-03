@@ -10,16 +10,14 @@ from utils.util import Timer
 TEXT_CHUNK_MIN_LEN = 20
 
 class PublishRequest(BaseModel):
-    q: str
-    q_voice: Optional[str] = config.voice['q']['voiceName']
-    q_device: Optional[int] = config.voice['q']['device']
-    q_rate: float = config.voice['q']['rate']
-    a: str
-    a_voice: Optional[str] = config.voice['a']['voiceName']
-    a_device: Optional[int] = config.voice['a']['device']
-    a_rate: float = config.voice['a']['rate']
+    text: str
+    role: str
+    device: Optional[int] = config.voice['device']
+    voice: Optional[str] = config.voice['name']
+    rate: float = config.voice['rate']
 
 class TTSRequest(BaseModel):
+    role: str
     original: str
     processed: str
     voice: str
@@ -27,6 +25,7 @@ class TTSRequest(BaseModel):
     rate: float = 1.0
 
 class PlayRequest(BaseModel):
+    role: str
     text: str
     audio: Any # actually AudioDataStream
     device: int = -1
@@ -36,25 +35,19 @@ def preprocess_text_stage(req: PublishRequest) -> TTSRequest:
     def preprocess_chunk(chunk: str):
         return add_punctuation(chunk)
 
-    # q
-    # speak only if it is player message, not a system message with prefix.
-    if len(req.q) > 0 and not have_prefix(req.q):
-        original = to_chunks(remove_prefix(req.q), min_len=TEXT_CHUNK_MIN_LEN)
-        processed = list(map(preprocess_chunk, original))
-        for ori_chunk, proc_chunk in zip(original, processed):
-            yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.q_device, voice=req.q_voice, rate=req.q_rate)
-
-    # a
-    if len(req.a) > 0:
-        original = to_chunks(req.a, min_len=TEXT_CHUNK_MIN_LEN)
-        processed = list(map(preprocess_chunk, original))
-        for ori_chunk, proc_chunk in zip(original, processed):
-            yield TTSRequest(original=ori_chunk, processed=proc_chunk, device=req.a_device, voice=req.a_voice, rate=req.a_rate)
+    # Abort if text is empty or has prefix
+    if len(req.text) == 0 or have_prefix(req.text):
+        return None
+    original = to_chunks(req.text, min_len=TEXT_CHUNK_MIN_LEN)
+    processed = list(map(preprocess_chunk, original))
+    for ori_chunk, proc_chunk in zip(original, processed):
+        yield TTSRequest(original=ori_chunk, processed=proc_chunk,
+                         role=req.role, device=req.device, voice=req.voice, rate=req.rate)
 
 def tts_stage(req: TTSRequest):
     with Timer('fetch'):
         audio = get_azure_tts_audio(req.processed, req.voice, rate=req.rate)
-    return PlayRequest(text=req.original, audio=audio, device=req.device)
+    return PlayRequest(audio=audio, text=req.original, role=req.role, device=req.device)
 
 def play_stage(req: PlayRequest):
     with Timer('play'):

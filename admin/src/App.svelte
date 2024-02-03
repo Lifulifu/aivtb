@@ -22,7 +22,7 @@
   let audioDevices: {id: number, name: string}[] = [];
   let audioDevice: {id: number, name: string} = {id: -1, name: '<No device>'};
 
-  let subtitle: string = '';
+  let subtitles: string[] = [];
   let subtitleWs: WebSocket;
   let subtitleError: boolean = false;
 
@@ -72,8 +72,10 @@
       subtitleError = false;
       try {
         const data = JSON.parse(e.data)
+        console.log(data)
         if(data) {
-          subtitle = subtitle + '\n' + data;
+          subtitles.push(`${data.role}: ${data.text}`);
+          subtitles = subtitles;
         }
       } catch (e) {
         console.log(e)
@@ -121,14 +123,20 @@
     userQuestion = '';
   }
 
-  async function publishMessage() {
+  async function onPublishClick() {
     if (!canPublishMessage) return;
-    const q = messagePreview[messagePreview.length - 2]?.content ?? '';
-    const a = messagePreview[messagePreview.length - 1]?.content ?? '';
+    // Publish the last 2 messages
+    if (messagePreview.length >= 2) {
+      await publishMessage(messagePreview[messagePreview.length - 2]);
+    }
+    await publishMessage(messagePreview[messagePreview.length - 1]);
+  }
+
+  async function publishMessage(message: {content: string, role: string}) {
     await fetch(publishMessageUrl, {
       method: 'post',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q, a, q_device: audioDevice.id, a_device: audioDevice.id })
+      body: JSON.stringify({ role: message.role, text: message.content, device: audioDevice.id })
     }).then(res => {
       if (!res.ok)
         throw new Error('Failed to publish message');
@@ -161,7 +169,7 @@
   }
 </script>
 
-<main>
+<main class="pb-8">
   <div class="container w-full mt-8 lg:grid grid-cols-2 items-start gap-4">
     <div class="mb-8">
       <Tabs>
@@ -260,7 +268,7 @@
               {/each}
             </Select>
           </Label>
-          <Button color='primary' class="flex-grow" on:click={publishMessage} disabled={!canPublishMessage}>Publish</Button>
+          <Button color='primary' class="flex-grow" on:click={onPublishClick} disabled={!canPublishMessage}>Publish</Button>
         </div>
       </Card>
 
@@ -271,9 +279,13 @@
             <Button color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectSubtitle}>Connect</Button>
           </ButtonGroup>
-          <Button class='ml-auto' color='alternative' on:click={() => subtitle = ''}>Clear</Button>
+          <Button class='ml-auto' color='alternative' on:click={() => subtitles = []}>Clear</Button>
         </div>
-        <p class="whitespace-pre-wrap">{subtitle}</p>
+        <ul>
+          {#each subtitles as subtitle}
+            <li class="whitespace-pre-wrap">{subtitle}</li>
+          {/each}
+        </ul>
       </Card>
     </div>
   </div>

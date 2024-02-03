@@ -23,3 +23,7 @@ app.include_router(yt_comments.router)
 async def lifespan(app: FastAPI):
     yield
     print('server shutdown')
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", port=8000, host="0.0.0.0", log_level="info", lifespan="on")
