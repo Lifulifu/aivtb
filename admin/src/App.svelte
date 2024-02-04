@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Select } from 'flowbite-svelte'
+  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Select, Badge } from 'flowbite-svelte'
   import { Tabs, TabList, TabBody, TabHeader } from './lib/tabs/tabs';
   import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
@@ -25,6 +25,7 @@
   let subtitles: string[] = [];
   let subtitleWs: WebSocket;
   let subtitleError: boolean = false;
+  let remainTasks: number = 0;
 
   const SERVER_URL = 'localhost:8000';
   const sendMessageUrl = `http://${SERVER_URL}/send_message`;
@@ -76,6 +77,7 @@
         if(data) {
           subtitles.push(`${data.role}: ${data.text}`);
           subtitles = subtitles;
+          remainTasks = data.remain;
         }
       } catch (e) {
         console.log(e)
@@ -123,13 +125,12 @@
     userQuestion = '';
   }
 
-  async function onPublishClick() {
+  async function onPublishClick(lastN: number = 0) {
     if (!canPublishMessage) return;
-    // Publish the last 2 messages
-    if (messagePreview.length >= 2) {
-      await publishMessage(messagePreview[messagePreview.length - 2]);
+    for (let i=0; i<messagePreview.length; i++) {
+      if (lastN === 0 || i >= (messagePreview.length - lastN))
+        await publishMessage(messagePreview[i]);
     }
-    await publishMessage(messagePreview[messagePreview.length - 1]);
   }
 
   async function publishMessage(message: {content: string, role: string}) {
@@ -268,21 +269,23 @@
               {/each}
             </Select>
           </Label>
-          <Button color='primary' class="flex-grow" on:click={onPublishClick} disabled={!canPublishMessage}>Publish</Button>
+          <Button color='primary' class="flex-grow" on:click={() => onPublishClick(2)} disabled={!canPublishMessage}>Last 2</Button>
+          <Button color='primary' class="flex-grow" on:click={() => onPublishClick(0)} disabled={!canPublishMessage}>Publish</Button>
         </div>
       </Card>
 
       <!-- Subtitle display -->
       <Card class="mt-8 space-y-2 max-w-full">
-        <div class="flex">
+        <div class="flex items-center gap-2">
           <ButtonGroup>
             <Button color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
             <Button color='primary' on:click={connectSubtitle}>Connect</Button>
           </ButtonGroup>
+          <Badge>remain: {remainTasks}</Badge>
           <Button class='ml-auto' color='alternative' on:click={() => subtitles = []}>Clear</Button>
         </div>
         <ul>
-          {#each subtitles as subtitle}
+          {#each subtitles.slice(-5) as subtitle}
             <li class="whitespace-pre-wrap">{subtitle}</li>
           {/each}
         </ul>

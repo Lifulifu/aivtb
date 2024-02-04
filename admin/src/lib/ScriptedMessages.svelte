@@ -37,7 +37,7 @@
       class="py-2 px-4 border-b max-w-full hover:bg-primary-600/30 flex items-center gap-4"
       on:click={() => submit(item)}>
         {#each item as message}
-          <div class="max-w-[20rem] overflow-hidden overflow-ellipsis whitespace-nowrap">
+          <div class="w-[10rem] overflow-hidden overflow-ellipsis whitespace-nowrap flex-shrink-0">
             <p class="text-xs font-bold text-gray-400">{message.role}</p>
             <p>{message.content}</p>
           </div>
