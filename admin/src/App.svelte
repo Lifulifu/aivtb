@@ -11,7 +11,8 @@
 
   let userQuestion: string = '';
   let showUserQuestionModal: boolean = false;
-  let temperature: number = 0.7;
+  let temperature: number = parseFloat(localStorage.getItem('temperature') ?? '0.7');
+  $: localStorage.setItem('temperature', temperature.toString());
 
   let messagePreview: {role: string, content: string}[] = [];
   let messagePreviewWs: WebSocket;
@@ -20,7 +21,10 @@
   $: canPublishMessage = messagePreview?.length >= 1 && messagePreview[messagePreview.length - 1].role === 'assistant';
   let edittingMessage: any = null;
   let audioDevices: {id: number, name: string}[] = [];
-  let audioDevice: {id: number, name: string} = {id: -1, name: '<No device>'};
+  let audioDevice: {id: number, name: string} = {id: -1, name: ''};
+  $: if (audioDevice.name !== '') {
+    localStorage.setItem('audioDevice', audioDevice.name);
+  }
 
   let subtitles: string[] = [];
   let subtitleWs: WebSocket;
@@ -40,6 +44,11 @@
     // Get audio devices
     let res = await fetch(`http://${SERVER_URL}/audio_devices`);
     audioDevices = await res.json();
+
+    // Select cached device
+    const cachedDeviceName = localStorage.getItem('audioDevice');
+    const device = audioDevices.filter(({ name }) => name === cachedDeviceName)?.[0];
+    if (device) audioDevice = device;
   })
 
   onDestroy(() => {
@@ -108,6 +117,15 @@
     })
   }
 
+  async function retryMessage() {
+    if (messagePreview.length <= 0) return;
+    if (messagePreview[messagePreview.length-1].role === 'assistant') {
+      messagePreview.splice(-1);
+      messagePreview = messagePreview;
+      sendMessage();
+    }
+  }
+
   function addEmptyMessage(role: 'assistant'|'user' = 'assistant') {
     const message = {role, content: ''};
     edittingMessage = message;
@@ -150,23 +168,22 @@
     messagePreview = messagePreview.filter((r) => r !== message);
   }
 
-  function regenerateMessage(message: any) {
-    const _messagePreview = []
-    // delete all messages after response
-    for(let res of messagePreview) {
-      if (res === message) break;
-      _messagePreview.push(res);
-    }
-    messagePreview = _messagePreview;
+  function onYtMessageSend(e: CustomEvent<YtCommentItem>) {
+    messagePreview = [{ role: "user", content: e.detail.message}];
     sendMessage();
   }
 
-  function onYtMessageSubmit(e: CustomEvent<YtCommentItem>) {
+  function onYtMessageAdd(e: CustomEvent<YtCommentItem>) {
     messagePreview = [...messagePreview, { role: "user", content: e.detail.message}];
+    sendMessage();
   }
 
-  function onScriptedMessageSubmit(e: CustomEvent<{role: string, content: string}[]>) {
+  function onScriptedMessageSend(e: CustomEvent<{role: string, content: string}[]>) {
     messagePreview = e.detail;
+  }
+
+  function onScriptedMessageAdd(e: CustomEvent<{role: string, content: string}[]>) {
+    messagePreview = [...messagePreview, ...e.detail];
   }
 </script>
 
@@ -180,11 +197,11 @@
         </TabList>
 
         <TabBody>
-          <YtMessages on:submit={onYtMessageSubmit}/>
+          <YtMessages on:send={onYtMessageSend} on:add={onYtMessageAdd}/>
         </TabBody>
 
         <TabBody>
-          <ScriptedMessages on:submit={onScriptedMessageSubmit}/>
+          <ScriptedMessages on:send={onScriptedMessageSend} on:add={onScriptedMessageAdd}/>
         </TabBody>
       </Tabs>
     </div>
@@ -218,23 +235,26 @@
       </form>
 
       <!-- QA streaming display -->
-      <Card class="mt-8 max-w-full space-y-2 bg-gray-200" padding="md">
-        <div class="flex gap-2">
+      <Card class="mt-8 max-w-full space-y-2 bg-gray-200 overflow-hidden" padding="none">
+        <div class="flex items-center gap-2 p-4">
           <ButtonGroup>
-            <Button color='alternative' on:click={() => messagePreviewWs.close()}>Disconnect</Button>
-            <Button color='primary' on:click={connectMessagePreview}>Connect</Button>
+            <Button size="xs" color='alternative' on:click={() => messagePreviewWs.close()}>Disconnect</Button>
+            <Button size="xs" color='primary' on:click={connectMessagePreview}>Connect</Button>
           </ButtonGroup>
-          <Button class="ml-auto" color="primary" on:click={() => addEmptyMessage('user')}>Add User</Button>
-          <Button color="primary" on:click={() => addEmptyMessage('assistant')}>Add Ai</Button>
-          <Button color="alternative" on:click={() => messagePreview = []}>Clear</Button>
+          <Button size="xs" class="ml-auto" color="primary" on:click={() => addEmptyMessage('user')}>Add User</Button>
+          <Button size="xs" color="primary" on:click={() => addEmptyMessage('assistant')}>Add Ai</Button>
+          <Button color="alternative" class="p-2" on:click={() => messagePreview = []}><Icon icon="ph:trash-bold"/></Button>
         </div>
         {#if isLoading}
           <div class="flex justify-center">
             <Spinner/>
           </div>
         {:else}
+          {#if messagePreview.length <= 0}
+            <div class="p-4 text-center">No messages</div>
+          {/if}
           {#each messagePreview as message}
-            <Card class="max-w-full" padding="md">
+            <Card class="relative group max-w-full mx-4" padding="md">
               <div class="flex gap-2 items-center">
                 <div class="flex-grow">
                   <p on:click={() => edittingMessage = message} class="text-xs font-bold text-gray-400">{message.role}</p>
@@ -244,23 +264,23 @@
                     <p on:click={() => edittingMessage = message}>{message.content}</p>
                   {/if}
                 </div>
-                <div class="flex">
+                <div class="absolute right-2 top-2 hidden group-hover:flex gap-1">
                   {#if message === edittingMessage}
-                    <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => edittingMessage = null}><Icon icon="material-symbols:close-small-rounded"/></button>
+                    <button class="p-2 rounded-md bg-white border hover:bg-gray-200" on:click={() => edittingMessage = null}><Icon icon="material-symbols:close-small-rounded"/></button>
                   {:else}
-                    {#if message.role === 'assistant'}
-                      <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => regenerateMessage(message)}><Icon icon="material-symbols:refresh-rounded"/></button>
-                    {:else}
-                      <button class="p-2 rounded-full hover:bg-gray-200" on:click={() => sendMessage()}><Icon icon="material-symbols:arrow-forward"/></button>
-                    {/if}
-                    <button class="p-2 text-red-700 rounded-full hover:bg-gray-200" on:click={() => deleteMessage(message)}><Icon icon="mdi:trash-outline"/></button>
+            <button class="p-2 rounded-md bg-white border text-red-700 hover:bg-gray-200" on:click={() => deleteMessage(message)}><Icon icon="mdi:trash-outline"/></button>
                   {/if}
                 </div>
               </div>
             </Card>
           {/each}
+
+          <div class="p-4 w-full flex justify-center gap-2">
+            <Button disabled={messagePreview.length <= 0} on:click={() => sendMessage()}>Generate</Button>
+            <Button disabled={messagePreview.length <= 0} on:click={() => retryMessage()}>Retry</Button>
+          </div>
         {/if}
-        <div class="flex items-end gap-2">
+        <div class="flex items-end gap-2 bg-white p-4">
           <Label class="flex-grow">
             Playback device
             <Select bind:value={audioDevice}>
@@ -270,7 +290,7 @@
             </Select>
           </Label>
           <Button color='primary' class="flex-grow" on:click={() => onPublishClick(2)} disabled={!canPublishMessage}>Last 2</Button>
-          <Button color='primary' class="flex-grow" on:click={() => onPublishClick(0)} disabled={!canPublishMessage}>Publish</Button>
+          <Button color='primary' class="flex-grow" on:click={() => onPublishClick(0)} disabled={!canPublishMessage}>All</Button>
         </div>
       </Card>
 
@@ -278,11 +298,11 @@
       <Card class="mt-8 space-y-2 max-w-full">
         <div class="flex items-center gap-2">
           <ButtonGroup>
-            <Button color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
-            <Button color='primary' on:click={connectSubtitle}>Connect</Button>
+            <Button size="xs" color='alternative' on:click={() => subtitleWs.close()}>Disconnect</Button>
+            <Button size="xs" color='primary' on:click={connectSubtitle}>Connect</Button>
           </ButtonGroup>
           <Badge>remain: {remainTasks}</Badge>
-          <Button class='ml-auto' color='alternative' on:click={() => subtitles = []}>Clear</Button>
+          <Button class='ml-auto p-2' color='alternative' on:click={() => subtitles = []}><Icon icon="ph:trash-bold"/></Button>
         </div>
         <ul>
           {#each subtitles.slice(-5) as subtitle}

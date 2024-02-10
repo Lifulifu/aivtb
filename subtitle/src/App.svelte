@@ -21,6 +21,19 @@
     subtitleWs.close();
   })
 
+  function typeQuestion(text: string) {
+    let i = 0;
+    question = '';
+    function _typeQuestion() {
+      if (i < text.length) {
+        question = question + text.charAt(i);
+        i++;
+        setTimeout(_typeQuestion, 50);
+      }
+    }
+    _typeQuestion();
+  }
+
   async function connectSubtitle() {
     if (subtitleWs) subtitleWs.close();
     subtitleWs = new WebSocket(subtitleUrl);
@@ -29,7 +42,8 @@
         const data = JSON.parse(e.data)
         if(data) {
           if (data.role === 'user') {
-            question = data.text;
+            typeQuestion(data.text);
+            subtitle = '';
             clearTimeout(questionTimer);
             questionTimer = setTimeout(() => {
               question = '';
@@ -59,6 +73,11 @@
     question = testSubtitle;
     subtitle = testSubtitle;
   }
+
+  function onClearClick() {
+    question = '';
+    subtitle = '';
+  }
 </script>
 
 <div class="flex p-4 gap-2 items-center">
@@ -70,7 +89,7 @@
 
   <button
   class="bg-gray-300 py-2 px-4 rounded-md"
-  on:click={() => subtitle = ''}>
+  on:click={onClearClick}>
     Clear
   </button>
 </div>

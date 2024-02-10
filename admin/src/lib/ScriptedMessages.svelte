@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Button, Card, Fileupload, Label } from 'flowbite-svelte'
+  import Icon from '@iconify/svelte';
+import { Button, Card, Fileupload, Label } from 'flowbite-svelte'
   import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
 
@@ -20,8 +21,12 @@
     reader.readAsText(file);
   }
 
-  function submit(item: {role: string, content: string}[]) {
-    dispatch('submit', item);
+  function sendItem(item: {role: string, content: string}[]) {
+    dispatch('send', item);
+  }
+
+  function addItem(item: {role: string, content: string}[]) {
+    dispatch('add', item);
   }
 </script>
 
@@ -31,17 +36,20 @@
     <Fileupload bind:files={files} accept=".json"/>
   </div>
 
-  <ol class="max-h-[40ch] overflow-y-auto">
+  <ol class="max-h-[80ch] overflow-y-auto">
     {#each data as item}
       <li
-      class="py-2 px-4 border-b max-w-full hover:bg-primary-600/30 flex items-center gap-4"
-      on:click={() => submit(item)}>
+      class="group relative py-2 px-4 border-b max-w-full hover:bg-primary-600/30 flex items-center gap-4">
         {#each item as message}
           <div class="w-[10rem] overflow-hidden overflow-ellipsis whitespace-nowrap flex-shrink-0">
             <p class="text-xs font-bold text-gray-400">{message.role}</p>
             <p>{message.content}</p>
           </div>
         {/each}
+        <div class="gap-1 absolute hidden group-hover:flex right-2 top-2">
+          <Button color="alternative" class="p-2" on:click={() => sendItem(item)}><Icon icon="material-symbols:arrow-forward"/></Button>
+          <Button color="alternative" class="p-2" on:click={() => addItem(item)}><Icon icon="material-symbols:add"/></Button>
+        </div>
     </li>
     {/each}
   </ol>
