@@ -1,18 +1,37 @@
 <script lang="ts">
-  import { Card, Input, Button, ButtonGroup, Label, Toggle } from 'flowbite-svelte'
-  import { onDestroy, tick, createEventDispatcher } from 'svelte';
+  import { Card, Input, Button, ButtonGroup, Label, Toggle, Select } from 'flowbite-svelte'
+  import { onDestroy, tick, createEventDispatcher, onMount } from 'svelte';
   import { scrollToBottom } from './util';
   import type { YtCommentItem } from './types';
 
-  let videoId: string = '';
+  const PING_INTERVAL_MS = 2000;
+
   let ytComments: YtCommentItem[] = [];
   let ytCommentsWs: WebSocket;
   let ytCommentsDom: any = null;
+  let liveStreams: {id: string, title: string, liveChatId: string}[] = [];
+  let liveChatId: string = '';
   let autoScroll: boolean = true;
   let pingInterval: any;
 
-  const ytCommentsUrl = 'ws://localhost:8000/yt_comments';
+  const ytLiveStreamsUrl = 'http://localhost:8000/yt_live_streams';
+  const ytCommentsUrl = 'ws://localhost:8000/yt_live_chat';
   const dispatch = createEventDispatcher();
+
+  onMount(async () => {
+    const res = await fetch(ytLiveStreamsUrl);
+    try {
+      const jsonRes = await res.json();
+      liveStreams = jsonRes.map((item: any) => ({
+        id: item.id,
+        title: item.snippet.title,
+        liveChatId: item.snippet.liveChatId
+      }));
+    } catch (e) {
+      console.error(e);
+      liveStreams = [];
+    }
+  });
 
   onDestroy(() => {
     ytCommentsWs?.close();
@@ -22,20 +41,22 @@
   $: if (ytCommentsDom && autoScroll && ytComments) autoScrollYtComments()
 
   async function connectYtComments() {
-    if (!videoId) return;
     ytCommentsWs?.close();
     clearInterval(pingInterval);
 
-    ytCommentsWs = new WebSocket(`${ytCommentsUrl}/${videoId}`);
+    ytCommentsWs = new WebSocket(`${ytCommentsUrl}/${liveChatId}`);
     ytCommentsWs.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
         if(data) {
-          ytComments.push(data);
-          ytComments = ytComments;
+          const comments = data.map((item: any) => ({
+            name: item.authorDetails.displayName,
+            message: item.snippet.displayMessage
+          }));
+          ytComments = [...ytComments, ...comments];
         }
       } catch (e) {
-        console.log(e)
+        console.error(e)
       }
     }
     ytCommentsWs.onerror = (e) => {
@@ -46,7 +67,7 @@
       if (ytCommentsWs.readyState === 1) {
         ytCommentsWs.send('ping');
       }
-    }, 1000)
+    }, PING_INTERVAL_MS)
   }
 
   function disconnectYtComments() {
@@ -67,12 +88,20 @@
 
 <Card class="max-w-full space-y-2" padding="none">
   <div class="w-full flex flex-col items-center gap-2 p-4">
-    <Input bind:value={videoId}/>
     <div class="w-full flex gap-2 items-center">
+      <Select bind:value={liveChatId}>
+        {#each liveStreams as liveStream}
+          <option value={liveStream.liveChatId}>
+            {liveStream.title} ({liveStream.id})
+          </option>
+        {/each}
+      </Select>
       <ButtonGroup>
         <Button color='alternative' on:click={disconnectYtComments}>Disconnect</Button>
         <Button color='primary' on:click={connectYtComments}>Connect</Button>
       </ButtonGroup>
+    </div>
+    <div class="w-full flex gap-2 items-center">
       <Label class='ml-auto'>auto scroll</Label>
       <Toggle bind:checked={autoScroll}/>
       <Button color='alternative' on:click={() => ytComments = []}>Clear</Button>

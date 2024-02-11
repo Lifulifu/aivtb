@@ -1,34 +1,24 @@
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from wsmanager import WebSocketManager
-import pytchat
+from utils.yt_livechat import YTLiveChat
 
 router = APIRouter()
-
 manager = WebSocketManager()
+live_chat = YTLiveChat("client_secret.json")
 
-# Can't make it a worker because pytchat only works on the main thread
-@router.websocket('/yt_comments/{video_id}')
-async def yt_comments(websocket: WebSocket, video_id: str):
+
+@router.websocket("/yt_live_chat/{live_chat_id}")
+async def yt_live_chat(websocket: WebSocket, live_chat_id: str):
     await manager.connect(websocket)
-
-    chat = pytchat.create(video_id=video_id)
     try:
         while True:
-            # client must ping the server to keep the connection alive
             await websocket.receive_text()
-            if chat.is_alive():
-                async for item in chat.get().async_items():
-                    chunk = {
-                        'time': item.datetime,
-                        'name': item.author.name,
-                        'message': item.message
-                    }
-                    await manager.broadcast(chunk)
-            else:
-                manager.disconnect(websocket)
-                return True # abort
+            messages = live_chat.get_unread_live_chat_messages(live_chat_id)
+            await manager.broadcast(messages)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    except WebSocketException:
-        manager.disconnect(websocket)
+
+
+@router.get("/yt_live_streams")
+def yt_live_streams():
+    return live_chat.get_live_streams()
