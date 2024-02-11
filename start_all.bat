@@ -1,5 +1,5 @@
 rem Starting the server in PowerShell
-start powershell -NoExit -Command "cd server; python -m uvicorn --port 8000 server:app"
+start powershell -NoExit -Command "cd server; python server.py"
 timeout /t 3 /nobreak
 
 rem Starting the admin development server in PowerShell
