@@ -5,12 +5,8 @@
   import type { YtCommentItem } from './types';
   import Icon from '@iconify/svelte';
 
-<<<<<<< HEAD
   const PING_INTERVAL_MS = 2000;
 
-=======
-  let videoUrl: string = '';
->>>>>>> 5e3b3c334a95662c97c747a9f3200b1f03c12e23
   let ytComments: YtCommentItem[] = [];
   let ytCommentsWs: WebSocket;
   let ytCommentsDom: any = null;
@@ -19,13 +15,9 @@
   let autoScroll: boolean = true;
   let pingInterval: any;
 
-<<<<<<< HEAD
   const ytLiveStreamsUrl = 'http://localhost:8000/yt_live_streams';
   const ytCommentsUrl = 'ws://localhost:8000/yt_live_chat';
-=======
   const dummyComment: YtCommentItem = { name: 'test', message: 'test test', time: '' };
-  const ytCommentsUrl = 'ws://localhost:8000/yt_comments';
->>>>>>> 5e3b3c334a95662c97c747a9f3200b1f03c12e23
   const dispatch = createEventDispatcher();
 
   onMount(async () => {
@@ -102,10 +94,6 @@
 
 <Card class="max-w-full space-y-2 overflow-hidden" padding="none">
   <div class="w-full flex flex-col items-center gap-2 p-4">
-<<<<<<< HEAD
-=======
-    <Input bind:value={videoUrl}/>
->>>>>>> 5e3b3c334a95662c97c747a9f3200b1f03c12e23
     <div class="w-full flex gap-2 items-center">
       <Select bind:value={liveChatId}>
         {#each liveStreams as liveStream}
