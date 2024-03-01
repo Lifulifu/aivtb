@@ -8,19 +8,27 @@ class TextgenRequest(BaseModel):
     messages: list[dict[str, str]]
     temperature: float
 
+
 def textgen_stage(req: TextgenRequest):
     text_stream = get_llm_text_stream(
         construct_message(req.messages, prompt=config.prompt),
-        temperature=req.temperature)
-    accum = ''
+        temperature=req.temperature,
+    )
+    accum = ""
     for piece in text_stream:
         accum += piece
-        yield [ *req.messages, {"role": "assistant", "content": accum} ]
+        yield {
+            "status": "generating",
+            "messages": [*req.messages, {"role": "assistant", "content": accum}],
+        }
+    yield {"status": "done", "messages": []}
+
 
 # input: messages and temperature
 # output: messages with incremental text
-textgen_pipeline = Pipeline([
-    PipelineStage(run=textgen_stage),
-])
+textgen_pipeline = Pipeline(
+    [
+        PipelineStage(run=textgen_stage),
+    ]
+)
 textgen_pipeline.start()
-

@@ -40,7 +40,7 @@
     subtitleWs.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
-        if(data) {
+        if(data && data.status === 'start') {
           if (data.role === 'user') {
             typeQuestion(data.text);
             subtitle = '';

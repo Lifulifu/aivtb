@@ -3,7 +3,7 @@ from textgen_pipeline import textgen_pipeline, TextgenRequest
 
 router = APIRouter()
 
-@router.post('/send_message')
+
+@router.post("/send_message")
 def send_message(req: TextgenRequest):
-    print(req)
     textgen_pipeline.submit(req)

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Select, Badge } from 'flowbite-svelte'
+  import { Button, ButtonGroup, Card, Input, Spinner, Toast, Modal, Textarea, NumberInput, Label, Select, Badge, Toggle } from 'flowbite-svelte'
   import { Tabs, TabList, TabBody, TabHeader } from './lib/tabs/tabs';
   import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
@@ -28,7 +28,6 @@
 
   let subtitles: string[] = [];
   let subtitleWs: WebSocket;
-  let subtitleError: boolean = false;
   let remainTasks: number = 0;
 
   const SERVER_URL = 'localhost:8000';
@@ -36,6 +35,11 @@
   const publishMessageUrl = `http://${SERVER_URL}/publish_message`;
   const previewMessageeUrl = `ws://${SERVER_URL}/preview_message`;
   const subtitleUrl = `ws://${SERVER_URL}/subtitle`;
+
+  let automate: boolean = false;
+  let includeHistory: number = 5;
+  let idleActionTimer: any;
+  const IDLE_TIMEOUT_MS = 25000;
 
   onMount(async () => {
     connectMessagePreview();
@@ -64,7 +68,12 @@
       messagePreviewError = false;
       try {
         const data = JSON.parse(e.data)
-        if(data) messagePreview = data;
+        if(data) {
+          if (data?.status === 'done')
+            onMessageStreamDone();
+          else
+            messagePreview = data.messages;
+        }
       } catch (e) {
         messagePreview = []
       }
@@ -82,15 +91,16 @@
       subtitleError = false;
       try {
         const data = JSON.parse(e.data)
-        console.log(data)
         if(data) {
-          subtitles.push(`${data.role}: ${data.text}`);
+          subtitles.push(`[${data.status}] ${data.role}: ${data.text}`);
           subtitles = subtitles;
           remainTasks = data.remain;
         }
       } catch (e) {
         console.log(e)
       }
+
+      resetIdleAction();
     }
     subtitleWs.onerror = (e) => {
       console.error(e)
@@ -168,6 +178,12 @@
     messagePreview = messagePreview.filter((r) => r !== message);
   }
 
+  function onMessageStreamDone() {
+    if (automate) {
+      onPublishClick(2);
+    }
+  }
+
   function onYtMessageSend(e: CustomEvent<YtCommentItem>) {
     messagePreview = [{ role: "user", content: e.detail.message}];
     sendMessage();
@@ -176,6 +192,28 @@
   function onYtMessageAdd(e: CustomEvent<YtCommentItem>) {
     messagePreview = [...messagePreview, { role: "user", content: e.detail.message}];
     sendMessage();
+  }
+
+  function onNewYtMessage(e: CustomEvent<YtCommentItem[]>) {
+    if (automate && remainTasks <= 5) {
+      const _messagePreview = [...messagePreview, { role: "user", content: e.detail[0].message}];
+      messagePreview = _messagePreview.slice(-1 * includeHistory);
+      sendMessage();
+    }
+  }
+
+  function resetIdleAction() {
+    clearTimeout(idleActionTimer);
+    idleActionTimer = setTimeout(() => {
+      messagePreview = [];
+      sendMessage('<instruction>雜談');
+    }, IDLE_TIMEOUT_MS)
+  }
+
+  $: if (automate) {
+    resetIdleAction();
+  } else {
+    clearTimeout(idleActionTimer);
   }
 
   function onScriptedMessageSend(e: CustomEvent<{role: string, content: string}[]>) {
@@ -197,7 +235,13 @@
         </TabList>
 
         <TabBody>
-          <YtMessages on:send={onYtMessageSend} on:add={onYtMessageAdd}/>
+          <Card class="max-w-full mb-4">
+            <div class="flex items-center">
+              <Toggle bind:checked={automate}/>
+              <Label>Automate</Label>
+            </div>
+          </Card>
+          <YtMessages on:send={onYtMessageSend} on:add={onYtMessageAdd} on:newcomments={onNewYtMessage}/>
         </TabBody>
 
         <TabBody>

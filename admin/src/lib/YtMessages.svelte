@@ -5,7 +5,7 @@
   import type { YtCommentItem } from './types';
   import Icon from '@iconify/svelte';
 
-  const PING_INTERVAL_MS = 2000;
+  const PING_INTERVAL_MS = 4000;
 
   let ytComments: YtCommentItem[] = [];
   let ytCommentsWs: WebSocket;
@@ -55,6 +55,7 @@
             name: item.authorDetails.displayName,
             message: item.snippet.displayMessage
           }));
+          if (comments.length > 0) dispatch('newcomments', comments);
           ytComments = [...ytComments, ...comments];
         }
       } catch (e) {
@@ -107,10 +108,10 @@
         <Button size="xs" color='primary' on:click={connectYtComments}>Connect</Button>
       </ButtonGroup>
     </div>
-    <div class="w-full flex gap-2 items-center">
-      <Label class='ml-auto'>auto scroll</Label>
+    <div class="w-full flex items-center">
       <Toggle bind:checked={autoScroll}/>
-      <Button color='alternative' class="p-2" on:click={() => ytComments = [...ytComments, dummyComment]}>Test</Button>
+      <Label class="mr-auto">Auto scroll</Label>
+      <Button color='alternative' class="p-2 mr-2" on:click={() => ytComments = [...ytComments, dummyComment]}>Test</Button>
       <Button color='alternative' class="p-2" on:click={() => ytComments = []}><Icon icon="ph:trash-bold"/></Button>
     </div>
   </div>
